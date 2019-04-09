@@ -100,7 +100,8 @@ build_cadunico <-
       
       # download the file
       if ( is.null( catalog[ i , "datavault_file" ] ) ) {
-        download.file( catalog[ i , "full_url" ] , tf , quiet = TRUE , mode = "wb" )
+        #adicionei método curl explícito, verificar ssl falso e extra = "-k -L" para que funcionasse
+        download.file( catalog[ i , "full_url" ] , tf , quiet = TRUE , ssl_verifypeer = FALSE, method = 'curl', mode = "wb", extra = "-k -L") 
       } else if ( is.na( catalog[ i , "datavault_file" ] ) ) {
         download.file( catalog[ i , "full_url" ] , tf , quiet = TRUE , mode = "wb" ) 
       } else {
@@ -112,7 +113,7 @@ build_cadunico <-
       
       unzip( tf , exdir = td )
       unzipped_files <- list.files( td , full.names = TRUE , recursive = TRUE )
-      
+      unzipped_files
       if( .Platform$OS.type != 'windows' ){
         sapply(unique(dirname(gsub( "\\\\" ,  "/" , unzipped_files ))),dir.create,showWarnings=FALSE)
         file.rename( unzipped_files , gsub( "\\\\" ,  "/" , unzipped_files ) )
