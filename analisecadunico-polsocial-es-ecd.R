@@ -40,7 +40,7 @@ confint(totales.ecd)
 ## subconjunto apenas das crianças no cadúnico
 cadunicoecd <- subset(pes.design, idade < 6)
 
-ecdpbfes <- svyby(~grepl("^32",cd_ibge), (~marc_pbf > 0), cadunicoecd, svytotal, na.rm = TRUE)
+ecdpbfes <- svyby(~grepl("^32",cd_ibge), ~marc_pbf, cadunicoecd, svytotal, na.rm = TRUE)
 
 #calcula o intervalo de confiança
 confint(ecdpbfes)
