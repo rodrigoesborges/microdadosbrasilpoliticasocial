@@ -8,7 +8,6 @@
 
 #reposrvyr <- "gergness/srvyr"
 require("devtools")
-require(lodown)
 require(haven)
 require(survey)
 
