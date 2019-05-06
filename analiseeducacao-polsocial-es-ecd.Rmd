@@ -1,0 +1,35 @@
+---
+title: "Indicadores Educação e DPI no Espírito Santo"
+output: html_document
+---
+
+
+```{r include = FALSE}
+knitr::opts_chunk$set
+#install.packages("devtools")
+#install.packages("stringi") 
+:#devtools::install_github("rodrigoesborges/microdadosBrasil")
+require(microdadosBrasil)
+:#pasta para download dos dados brutos (quando muito grandes)
+dadoslocais <- "~/RLocalData/censoescolar"
+#Baixar dados caso não existam
+#download_sourceData("CensoEscolar",2017, unzip = F, root_path = dadoslocais)
+#read_CensoEscolar(ft = 'asas',i = 2017) #para ver os disponíveis
+escolar2017 <- read_CensoEscolar(ft = "escola",i = 2017, root_path = dadoslocais)
+```
+
+
+```{r include = tre}
+#Análise Dados Censo Escolar
+##Creches e pré-escolas. 
+* Dados a levantar:
+  - Taxa de Cobertura em Creche
+  - Taxa de Cobertura em Pré-Escola
+  - Nº de creches e turmas de pré-escolas no ES / 1.000 crianças 
+* N. de creches e turmas de pré-escolas públicas (% total) 
+* Nº de alunos por turma / Nº alunos por professor 
+* Nº de alunos na faixa etária de 0 a 6 anos matriculados / 1.000 crianças 0 a 6
+* Gasto público em educação com creches e pŕe-escolas por município, ES e BR (absoluto e per capita)
+```
+
+
