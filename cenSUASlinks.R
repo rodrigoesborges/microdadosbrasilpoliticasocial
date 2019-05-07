@@ -9,3 +9,6 @@ download.file(urlcsuas,destfile = tempor, method = 'curl', extra = '-k -L')
 mdsmicro <- htmlParse(tempor)
 lnksuas <- xpathSApply(mdsmicro, "//a[contains(text(), 'Censo SUAS')]/following-sibling::a/@href")
 lnksuas <- as.vector(lnksuas[!grepl("#",lnksuas)])
+nmsuas <- xpathSApply(mdsmicro, "//div[@id= 'u288']//a[contains(text(), 'Censo SUAS')]",xmlValue)
+
+suaslnks <- as.data.frame(cbind(nmsuas,lnksuas))
