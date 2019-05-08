@@ -19,13 +19,13 @@ require(survey)
 #download.file(url2017,pastadados)
 
 pastadados <- "~/RLocalData/censoSUAS/"
-
-unzip(paste0(pastadados,nomcarq), exdir = pastadados, unzip = getOption("unzip"))
-
 nomcarq <- "microdado_210.zip"
 nomcpad <- "Censo SUAS 2017"
 unidinst <- "CRAS"
 tipo <- "divulgacao"
+
+unzip(paste0(pastadados,nomcarq), exdir = pastadados, unzip = getOption("unzip"))
+
 
 
       
@@ -57,9 +57,16 @@ uf <- "^32"
 varcras <- c(1,4,7,10,11,18,28,29,32,33,34,124,125,126,127,137,144,136,210)
 crastabes <- crastab[grepl(uf,crastab$IBGE7),varcras]
 
+# Para o ES
+fampaifes_17 <- sum(crastabes$q15.1, na.rm = TRUE)
+#Famílias atendidas por CRAS
+craspaifes17 <- fampaifes_17/nrow(crastabes[crastabes$q15.1 > 0,])
 
+#N. de CRAS que ofertam o SCFV para crianças de 0 a 6 anos
+cras_scfv_es_17 <- nrow(crastabes[crastabes$q17.1 == 1,1])
+fam_total_atendidas_cras_scfv_es_17 <- sum(crastabes[crastabes$q17.1 == 1,]$q15.1, na.rm = TRUE)
 
-### CREAS não possui questionario adaptado a primeira infância
+### CREAS não possui questionario adaptado a  primeira infância
 
 #De interesse - Abrigos
 #q15 - faixa etária e sexo dos abrigados
