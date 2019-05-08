@@ -5,10 +5,10 @@
 
 #dados municipais
 # As bases são o SIDRA e o DATASUS
-install_github('rodrigoesborges/RSidra')
+devtools::install_github('rodrigoesborges/RSidra')
 require(RSIDRA)
 #require(devtools)
-#install_github('rodrigoesborges/datasus')
+devtools::install_github('rodrigoesborges/datasus', force = TRUE)
 require(datasus)
 require(stringr)
 require(tidyverse)
@@ -30,6 +30,11 @@ nivmun <- 6
 anoin <- 2017
 anofim <- 2017
 popmun17 <- API_SIDRA(t, nivel = nivmun, variavel = vpop, inicio = anoin, fim = anofim)
+
+municodl <- data.frame(codigomun = popmun17$`Município (Código)`, municipio = popmun17$Município, stringsAsFactors = FALSE)
+#municodl$codatasus <- as.numeric(substr(municodl$codigomun,1,6))
+#write.csv2(municodl,"data/tabcodigosmunibgedatasus.csv", row.names = FALSE)
+
 popmunes17 <- popmun17[grepl("^32",popmun17$`Município (Código)`),c(1,5,6,length(popmun17))]
 
 
@@ -72,7 +77,7 @@ piramfator <- t(t(piramesm[-1,c(-1,-19)])/pirames)
 
 #2) piramide etaria ES 2017
 #Faixa etária tem mais categorias, reduzir ao denominador comum
-ultfaixa <- names(piramfatorm)[length(piramfatorm)]
+ultfaixa <- names(popes)[length(popes)-1]
 popesult <- ibge_projpop_bruf(unidade_da_federacao = "Espírito Santo", coluna = "Faixa Etária 1", periodo = "2017")
 
 popesult <- popesult[-1,c(-1,-length(popesult))] %>%
@@ -105,7 +110,7 @@ popmunes17[,1] <- substr(popmunes17[,1],1,6)
 es17popidades <- merge(piramfatoratual,popmunes17, by = municod[1])
 
 es17popidades[,3:19] <- round(es17popidades[,3:19]*as.vector(es17popidades[,20]), 0)
-
+es17popidades$CodMunicipio <- as.numeric(as.character(es17popidades$CodMunicipio))
 # Passos se nao datasus/RIPSA - com dados do CENSO:
 #   
 #   Sinopse do Censo 2010 - ibge
