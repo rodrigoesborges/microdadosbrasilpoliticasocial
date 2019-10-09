@@ -7,8 +7,9 @@
 # As bases são o SIDRA e o DATASUS
 devtools::install_github('rodrigoesborges/RSidra')
 require(RSIDRA)
+#Necessário caso seja atualizado o pacote datasus
 #require(devtools)
-devtools::install_github('rodrigoesborges/datasus', force = TRUE)
+#devtools::install_github('rodrigoesborges/datasus', force = TRUE)
 require(datasus)
 require(stringr)
 require(tidyverse)
