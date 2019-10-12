@@ -1,13 +1,18 @@
-downloader::source_url( "https://raw.githubusercontent.com/guilhermejacob/guilhermejacob.github.io/master/scripts/install_packages.R" , quiet = TRUE , prompt = TRUE )
+#downloader::source_url( "https://raw.githubusercontent.com/guilhermejacob/guilhermejacob.github.io/master/scripts/install_packages.R" , quiet = TRUE , prompt = TRUE )
 
 catalog_cadunico <-
   function( output_dir ){
+    #load libraries
+    library(RCurl)
+    library(rvest)
+    library(xml2)
+    
     
     data_portal <- "https://aplicacoes.mds.gov.br/sagi/portal/index.php?grupo=212"
+    #collect html
+    raw_html <- getURL( data_portal , .opts = list( ssl.verifypeer = FALSE ) )
     
-    raw_html <- RCurl::getURL( data_portal , .opts = list( ssl.verifypeer = FALSE ) )
-    
-    w <- rvest::html_attr( rvest::html_nodes( xml2::read_html( raw_html ) , "a" ) , "href" )
+    w <- html_attr( html_nodes( read_html( raw_html ) , "a" ) , "href" )
     
     these_links <- grep( "base_amostra_cad_|\\/files\\/" , w , value = TRUE , ignore.case = TRUE )
     
@@ -36,8 +41,9 @@ catalog_cadunico <-
     catalog$is.microdata <- NULL
     
     # sort by year
-    catalog[ order( catalog$year , na.last = FALSE ) , ]
-    
+    catalog <- catalog[ order( catalog$year , na.last = FALSE ) , ]
+    #return catalog
+    catalog
   }
 
 # datavault
@@ -86,6 +92,12 @@ datavault_cadunico <- function( catalog , datavault_dir , skipExist = TRUE ) {
 build_cadunico <-
   function( catalog ){
     
+    #load libraries
+    library(DBI)
+    library(MonetDBLite)
+    library(data.table)
+    library(survey)    
+    
     # define temporary file and folder
     tf <- tempfile()
     td <- file.path( tempdir() , "unzips" )
@@ -96,7 +108,7 @@ build_cadunico <-
       if ( !dir.exists( dirname( catalog[ i , 'dbfolder' ] ) ) ) dir.create( dirname( catalog[ i , 'dbfolder' ] ) , recursive = TRUE )
       
       # open the connection to the monetdblite database
-      db <- DBI::dbConnect( MonetDBLite::MonetDBLite() , catalog[ i , "dbfolder" ] )
+      db <- dbConnect( MonetDBLite() , catalog[ i , "dbfolder" ] )
       
       # download the file
       if ( is.null( catalog[ i , "datavault_file" ] ) ) {
@@ -131,25 +143,53 @@ build_cadunico <-
         this_data_file <- data_files [ grepl( this_table_type , basename( data_files ) , ignore.case = TRUE ) ]
         
         # read data set
-        csvdata <- data.table::fread( this_data_file , sep = ";" , dec = "," , showProgress = FALSE , data.table = TRUE )
+        csvdata <- fread( this_data_file , sep = ";" , dec = "," , showProgress = FALSE , data.table = TRUE )
         
         # fix column names
         column.names <- colnames( csvdata )
         column.names <- gsub( '\"' , "" , column.names ) # remove quotes
         column.names <- gsub( '\\.' , "_" , column.names ) # remove dots
         colnames( csvdata ) <- column.names
-        
+        print(colnames(csvdata))
         # add column of ones
         csvdata[ , one := 1 ]
+
+        #criar colunas indicando família com rendimento total menor que 60% SM e com rend. per capita menor que 60% SM
+        #Obter Salário Mínimo - fonte IPEA
+        if (this_table_type == "familia") { 
+        library(ipeaData)
+        smcod <- "MTE12_SALMIN12"
+        sm <- ipeadata(smcod, type = data.table)
+        #Anualizar por média
+        sm <- aggregate(VALVALOR ~ ANO,sm ,mean, na.rm = TRUE)
+        #subconjunto
+        sm <- sm[sm$ANO > 1994,]
+        sm$metade <- sm$VALVALOR*0.5
+        sm$VALOR <- sm$VALVALOR*0.6
+        #obter o equivalente a 60% SM para o ano
+        sm <- sm[sm$ANO == catalog[ i, "year"], 4]        
+        print(sm)
+        #Adiciona coluna para rendimento total familiar abaixo de 60% do SM
+        csvdata$smf60 <- csvdata$vlr_renda_media_fam * csvdata$qtde_pessoas < sm
+        #Adiciona coluna para rendimento per capita abaixo de 60% do SM
+        csvdata$smf60pc <-  csvdata$vlr_renda_media_fam < sm
+        #Adiciona coluna para rendimento per capita abaixo de 50% do SM
+        csvdata$smf50pc <- csvdata$vlr_renda_media_fam < (sm*5/6)
         
+        #criar coluna de família com filho de 0 a 9 
+        csvdata$f0a9 <- as.integer(csvdata$id_familia %in% familiasid0a9$id_familia)
+        }
         # store records in table
-        DBI::dbWriteTable( db , paste0( this_table_type , "_" , catalog[ i , "year" ] ) , csvdata )
+        dbWriteTable( db , paste0( this_table_type , "_" , catalog[ i , "year" ] ) , csvdata, overwrite = TRUE )
         
         # drop objects and delete file
         rm( csvdata ) ; file.remove( this_data_file ) ; gc()
         
         # process tracker
         cat( tolower( gsub( "\\..*" , "" , basename( this_data_file ) ) ) , "stored at" , paste0( this_table_type , "_" , catalog[ i , "year" ] ) , "\n" )
+        
+
+        
         
         # # create and merge fpc
         # {
@@ -163,7 +203,7 @@ build_cadunico <-
         #             this_table_type ,"_" , catalog[ i , 'year' ] ,
         #             " GROUP BY estrato ) "
         #     )
-        #   DBI::dbSendQuery( db , table_fpc_query )
+        #   dbSendQuery( db , table_fpc_query )
         #
         #   fpc_merge_query <- paste0(
         #     'create table cadunico_' ,
@@ -187,8 +227,8 @@ build_cadunico <-
           cat( "merging datasets.\n")
           
           # get columns
-          pes_cols <- DBI::dbListFields( db , paste0( "pessoa_" , catalog[ i , "year" ] ) )
-          fam_cols <- DBI::dbListFields( db , paste0( "familia_" , catalog[ i , "year" ] ) )
+          pes_cols <- dbListFields( db , paste0( "pessoa_" , catalog[ i , "year" ] ) )
+          fam_cols <- dbListFields( db , paste0( "familia_" , catalog[ i , "year" ] ) )
           
           # intersect( pes_cols , fam_cols )
           setdiff( pes_cols , fam_cols )
@@ -207,20 +247,20 @@ build_cadunico <-
           )
           
           # send query
-          DBI::dbSendQuery( db , merge.query )
+          dbSendQuery( db , merge.query )
           
           # test results
           # stopifnot(
-          #   DBI::dbGetQuery( db , paste0( "SELECT COUNT(*) FROM pessoa_", catalog[ i , "year" ] ) )[[1]] ==
-          #     DBI::dbGetQuery( db , paste0( "SELECT COUNT(*) FROM cadunico_", catalog[ i , "year" ] ) )[[1]]
+          #   dbGetQuery( db , paste0( "SELECT COUNT(*) FROM pessoa_", catalog[ i , "year" ] ) )[[1]] ==
+          #     dbGetQuery( db , paste0( "SELECT COUNT(*) FROM cadunico_", catalog[ i , "year" ] ) )[[1]]
           # )
           # stopifnot(
-          #   DBI::dbGetQuery( db , paste0( "SELECT SUM( peso_pes ) FROM pessoa_", catalog[ i , "year" ] ) )[[1]] ==
-          #     DBI::dbGetQuery( db , paste0( "SELECT SUM( peso_pes ) FROM cadunico_", catalog[ i , "year" ] ) )[[1]]
+          #   dbGetQuery( db , paste0( "SELECT SUM( peso_pes ) FROM pessoa_", catalog[ i , "year" ] ) )[[1]] ==
+          #     dbGetQuery( db , paste0( "SELECT SUM( peso_pes ) FROM cadunico_", catalog[ i , "year" ] ) )[[1]]
           # )
           
           # drop persons table
-          # DBI::dbRemoveTable( db , paste0( "pessoa_" , catalog[ i , 'year' ] ) )
+          # dbRemoveTable( db , paste0( "pessoa_" , catalog[ i , 'year' ] ) )
           
         } else { next() }
         
@@ -229,7 +269,7 @@ build_cadunico <-
         
         # create family design
         this_design <-
-          survey::svydesign(
+          svydesign(
             ids = ~id_familia ,
             strata = ~estrato ,
             weight = ~peso_fam ,
@@ -239,15 +279,17 @@ build_cadunico <-
             dbname = catalog[ i , 'dbfolder' ]
           )
         
+        #save survey design
         saveRDS( this_design , file = file.path( output_dir , paste0( "familia " , catalog[ i , "year" ] , " design.rds" ) ) )
         rm( this_design ) 
         
+        #process tracker
         # cat( paste0( data_name , " survey design entry " , i , " of " , nrow( unique_designs ) , " stored at '" , unique_designs[ i , 'design' ] , "'\r\n\n" ) )
         cat( paste0( "familia " , catalog[ i , "year" ] ) , "design stored" , "\n" )
         
         # create person design
         this_design <-
-          survey::svydesign(
+          svydesign(
             ids = ~id_familia ,
             strata = ~estrato ,
             weight = ~peso_pes ,
@@ -257,19 +299,21 @@ build_cadunico <-
             dbname = catalog[ i , 'dbfolder' ]
           )
         
+        #save design
         saveRDS( this_design , file = file.path( output_dir , paste0( "cadunico " , catalog[ i , "year" ] , " design.rds" ) ) )
         rm( this_design )
         
+        #process tracker
         # cat( paste0( data_name , " survey design entry " , i , " of " , nrow( unique_designs ) , " stored at '" , unique_designs[ i , 'design' ] , "'\r\n\n" ) )
         cat( paste0( "cadunico " , catalog[ i , "year" ] ) , "design stored" , "\n" )
         
       }
       
       # store case count
-      catalog[ i , 'case_count' ] <- DBI::dbGetQuery( db , paste0( "SELECT sum(peso_pes) FROM pessoa_" , catalog[ i , "year" ] ) )[ 1 , 1 ]
+      catalog[ i , 'case_count' ] <- dbGetQuery( db , paste0( "SELECT sum(peso_pes) FROM pessoa_" , catalog[ i , "year" ] ) )[ 1 , 1 ]
       
       # disconnect from the current monet database
-      DBI::dbDisconnect( db , shutdown = TRUE )
+      dbDisconnect( db , shutdown = TRUE )
       
       # delete the temporary files?  or move some docs to a save folder?
       suppressWarnings( file.remove( c(tf , unzipped_files ) ) )
