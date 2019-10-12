@@ -14,7 +14,7 @@ source("estimativas-populacao-ibge.R")
 source("R/zr_fun.R")
 
 #Período de Análise
-anosel <-  seq(2012,2016,1)
+anosel <-  seq(2016,2017,1)
 
 #Dados a selecionar de matrícula
 censoinfos <- c("NU_MES","NU_IDADE_REFERENCIA","NU_IDADE","TP_ETAPA_ENSINO","CO_MUNICIPIO", "CO_UF")
@@ -23,6 +23,12 @@ censoinfos <- c("NU_MES","NU_IDADE_REFERENCIA","NU_IDADE","TP_ETAPA_ENSINO","CO_
 censoinfoesc <- c("CO_UF", "CO_MUNICIPIO", "TP_DEPENDENCIA", 
                   "IN_COMUM_CRECHE", "IN_COMUM_PRE",
                   "IN_ESP_EXCLUSIVA_CRECHE", "IN_ESP_EXCLUSIVA_PRE")
+
+#Dados a selecionar de turma
+
+censoinfoturma <- c("ID_TURMA","NU_MATRICULAS","TP_ETAPA_ENSINO",
+                    "CO_UF","CO_MUNICIPIO")
+
 
 #Função para preparar dados de matrícula e salvar como rds
 mat_prep <- function(periodo,dt,info) {
@@ -54,14 +60,12 @@ mat_prep(anosel,dadoslocais,censoinfos)
 
 #função para carregar dados do censo
 
-  matricula2017 <- readRDS("data/matricula2016subc.rds")
-
-
-
-escolas2017 <- read_CensoEscolar(ft = "escola",i = 2017, vars_subset = censoinfoesc, root_path = dadoslocais)
-
-turmas2017 <- read_CensoEscolar(ft = "turma",i = 2017, vars_subset = censoinfoturma, root_path = dadoslocais)
-
+esc_carg <- function(ano, esc, turma, dt) {
+  matriculas <- readRDS(paste0("data/matricula",ano,"subdc.rds"))
+  escolas <- read_CensoEscolar(ft = "escola",i = ano, vars_subset = esc, root_path = dt)
+  turmas <- read_CensoEscolar(ft = "turma",i = ano, vars_subset = turma, root_path = dt)
+  microd <- list(matriculas,escolas,turmas)
+}
 
 #Inicializar tabela de resultados
 ind_nomes = c("Tx de Cobertura Bruta - Creche",
@@ -70,12 +74,13 @@ ind_nomes = c("Tx de Cobertura Bruta - Creche",
               "Tx de Cobertura efetiva  - Pré-escola", 
               "Creches e Pre-escolas / 1.000 crianças de 0 a 6",
               "Creches e Pré-escolas públicas (% do total)",
-              "Nº de alunos por turma" )
+              "Nº de alunos por turma" ,
+              "Ano")
 
 tab_ecd_ed <- data.frame(matrix(ncol = 1+length(ind_nomes), nrow=0), stringsAsFactors = FALSE)
 names(tab_ecd_ed) <- c("local",ind_nomes)
 
-tab_bruta_ecd_ed <- data.frame(matrix(ncol = 10, nrow=0), stringsAsFactors = FALSE)
+tab_bruta_ecd_ed <- data.frame(matrix(ncol = 11, nrow=0), stringsAsFactors = FALSE)
 nbruta <- c("municipio" ,
             "matr_creche" ,
             "matr_creche_mref" ,
@@ -85,7 +90,8 @@ nbruta <- c("municipio" ,
             "pop_adic_3_a_4" ,
             "pop_0a3",
             "pop_total_4_a_6" ,
-            "pop_adic_0_a_6")
+            "pop_adic_0_a_6",
+            "ano")
 
 
 #Número de matrículas em Creche / população de crianças na faixa etária
@@ -99,10 +105,20 @@ municodigos <- read.csv2("data/tabcodigosmunibgedatasus.csv", stringsAsFactors =
 
 municodigos <- municodigos[grepl(paste0("^",ufmat),municodigos$codigomun),]
 
-
+for (j in 1:length(anosel)) {
+  
+  #carregar dados correspondentes
+  esc_carg(anosel[j],censoinfoesc,censoinfoturma,dadoslocais)
+  matriculas <- microd$matriculas
+  escolas <- microd$escolas
+  turmas <- microd$turmas
+  ####vetores de anos para estimar população de:
+  ### 0 a 4:
+  anos_0a4 = seq(anosel[j]-3,anosel[j],1)
+  ### 
 #fazer para seleção de municípios
 for (i in 1:length(municodigos$codigomun)) {
-  mat_m17 <- matricula2017[CO_MUNICIPIO == municodigos[i,1],-6]
+  mat_m17 <- matriculas[CO_MUNICIPIO == municodigos[i,1],-6]
   crechemun17 <- nrow(mat_m17[TP_ETAPA_ENSINO==1,1])
   prescmun17 <- nrow(mat_m17[TP_ETAPA_ENSINO == 2,])
     #para cobertura efetiva, verificar criancas da
@@ -129,12 +145,12 @@ coberturacreche <- crechemun17/popmtotalidade
 #nascidos vivos residência da mãe datasus
 
 #nascidos vivos de 0 a 4
-nv_0a4 <- zr(sinasc_nv_mun(periodo = c("2014","2015","2016","2017"), municipio = municodigos[i,3])[2,2])
+nv_0a4 <- zr(sinasc_nv_mun(periodo = anos_0a4, municipio = municodigos[i,3])[2,2])
 ###retirado +sinasc_pnv_mun(municipio = municodigos[i,3])[,2] (dados preliminares já def)
 
 #obitos acumulados de 0 a 1 anos para os mesmos anos
 #teste
-ob10_0a4 <- zr(sim_inf10_mun(periodo = c("2014","2015","2016","2017"), municipio = municodigos[i,3])[2,2])
+ob10_0a4 <- zr(sim_inf10_mun(periodo = anos_0a4, municipio = municodigos[i,3])[2,2])
 #retirado dado preliminar, adicionado dado definitivo
 #+sim_pinf10_mun(municipio = municodigos[i,3])[,2]
 
@@ -142,11 +158,11 @@ ob10_0a4 <- zr(sim_inf10_mun(periodo = c("2014","2015","2016","2017"), municipio
 popadic_0a4 <- nv_0a4 - ob10_0a4
 
 ##mesmo que o anterior de 0 a 3
-nv_0a3 <- zr(sinasc_nv_mun(periodo = c("2015","2016","2017"), municipio = municodigos[i,3])[2,2])
+nv_0a3 <- zr(sinasc_nv_mun(periodo = anos_0a3, municipio = municodigos[i,3])[2,2])
 #retirados acima dados preliminares
 print(paste("População nascidos vivos de 0 a 3 é ",nv_0a3," no município ",municodigos$municipio[i]))
 #obitos acumulados de 0 a 1 anos para os mesmos anos
-ob10_0a3 <- zr(sim_inf10_mun(periodo = c("2015","2016","2017"), municipio = municodigos[i,3])[2,2])
+ob10_0a3 <- zr(sim_inf10_mun(periodo = anos_0a3, municipio = municodigos[i,3])[2,2])
 #retiradas informações preliminares - não disponíveis atualmente
 #+sim_pinf10_mun(municipio = municodigos[i,3])[,2]
 
@@ -158,7 +174,6 @@ popadic_3a4 <- popadic_0a4 - popadic_0a3
 
 popmtotal0a3 <- popmtotalidade - popadic_3a4
 
-print(paste("População 3 a 4 é ",popadic_3a4,"No município ",municodigos$municipio[i]))
 #taxa de cobertura bruta equivalente a:
 #https://observatoriocrianca.org.br/cenario-infancia/temas/educacao-infantil/1081-taxa-de-cobertura-em-creche?filters=1,77;3209,77;21,77
 
@@ -175,10 +190,10 @@ cob_efet_0a3mref <- matr_0a3_mref/popmtotal0a3
 ##### Pré - Escola ##############
 ######
 
-nv_0a6 <- zr(sinasc_nv_mun(periodo = c("2012","2013","2014","2015","2016","2017"), municipio = municodigos[i,3])[2,2])
+nv_0a6 <- zr(sinasc_nv_mun(periodo = anos_0a6, municipio = municodigos[i,3])[2,2])
 #retirado preliminares +sinasc_pnv_mun(municipio = municodigos[i,3])[,2]
 #obitos acumulados de 0 a 1 anos para os mesmos anos
-ob10_0a6 <- zr(sim_inf10_mun(periodo = c("2012","2013","2014","2015","2016","2017"), municipio = municodigos[i,3])[2,2])
+ob10_0a6 <- zr(sim_inf10_mun(periodo = anos_0a6, municipio = municodigos[i,3])[2,2])
 #retirado preliminares +sim_pinf10_mun(municipio = municodigos[i,3])[,2]
 #acrescimopop sem contar migrações
 popadic_0a6 <- nv_0a6 - ob10_0a6
@@ -187,8 +202,6 @@ popadic_0a6 <- nv_0a6 - ob10_0a6
 #de 0 a 4 anos?
 popadic_4a6 <- popadic_0a6 - popadic_0a4
 popmtotal4a6 <- popadic_4a6
-
-print(paste("População 4 a 6 é ",popmtotal4a6,"No município ",municodigos$municipio[i]))
 
 popmtotal0a6 <- popmtotalidade + popadic_4a6
 
@@ -215,7 +228,7 @@ cob_presc_efet_4e5m <- matr_4e5_m/popmtotal4a6
 cob_efet_4e5mref <- matr_4e5_mref/popmtotal4a6
 
 ### Creches e pre escolas / 1.000 crianças de 0 a 6
-escm17 <- escolas2017[(CO_MUNICIPIO ==  municodigos[i,1] ) & 
+escm17 <- escolas[(CO_MUNICIPIO ==  municodigos[i,1] ) & 
                         (IN_COMUM_CRECHE == 1 | IN_COMUM_PRE == 1 | 
                            IN_ESP_EXCLUSIVA_CRECHE == 1 | IN_ESP_EXCLUSIVA_PRE == 1),]
 
@@ -228,16 +241,16 @@ pubtotal <- nrow(escm17[TP_DEPENDENCIA != 4])/nrow(escm17)
 
 censoinfoturma <- c("ID_TURMA","NU_MATRICULAS","TP_ETAPA_ENSINO",
                     "CO_UF","CO_MUNICIPIO")
-turmas_m_17 <- turmas2017[CO_MUNICIPIO == municodigos[i,1] & TP_ETAPA_ENSINO <= 2,
+turmas_m_17 <- turmas[CO_MUNICIPIO == municodigos[i,1] & TP_ETAPA_ENSINO <= 2,
                           1:2 ]
 alturma_m_17 <- sum(turmas_m_17$NU_MATRICULAS)/length(unique(turmas_m_17$ID_TURMA))
 
 
-tab_bruta_ecd_ed <- rbind(tab_bruta_ecd_ed, c(municodigos$municipio[i],crechemun17,matr_0a3_mref,prescmun17,matr_4e5_mref,popmtotalidade,popadic_3a4,popmtotal0a3,popmtotal4a6,popadic_0a6), stringsAsFactors = FALSE)
+tab_bruta_ecd_ed <- rbind(tab_bruta_ecd_ed, c(municodigos$municipio[i],crechemun17,matr_0a3_mref,prescmun17,matr_4e5_mref,popmtotalidade,popadic_3a4,popmtotal0a3,popmtotal4a6,popadic_0a6,anosel[j]), stringsAsFactors = FALSE)
 names(tab_bruta_ecd_ed) <- nbruta
 ind_ed_res <- c(municodigos$municipio[i],cob_creche_bruta_m_17,
                 cob_efet_0a3mref,coberturapresc,cob_efet_4e5mref,
-                escolas_m_mil_17,pubtotal,alturma_m_17)
+                escolas_m_mil_17,pubtotal,alturma_m_17,anosel[j])
 tab_ecd_ed <- rbind(tab_ecd_ed,ind_ed_res, stringsAsFactors = FALSE)
 names(tab_ecd_ed) <- c("local",ind_nomes)
 }
@@ -245,7 +258,7 @@ names(tab_ecd_ed) <- c("local",ind_nomes)
 
 
   #para o ES
-  mat_uf_17 <- matricula2017[CO_UF==32,-6]
+  mat_uf_17 <- matriculas[CO_UF==32,-6]
 
 crechees17 <- nrow(mat_uf_17[TP_ETAPA_ENSINO==1,1])
 
@@ -260,18 +273,20 @@ popestotalecd <- sum(es17popidades$`0 a 4 anos`)
 #popadic ES de 0 a 3 anos estimada por nascimentos e óbitos
 
 ##Calculando pop. adicional 0 a 4 por nascidos e óbitos infantis
-nves_0a4 <- zr(sinasc_nv_bruf(periodo = c("2014","2015","2016"), unidade_da_federacao = "Espírito Santo")[2,2]+sinasc_pnv_bruf(unidade_da_federacao = "Espírito Santo")[2,2])
+nves_0a4 <- zr(sinasc_nv_bruf(periodo = anos_0a4, unidade_da_federacao = "Espírito Santo")[2,2])
+               #SUPOSTAMENTE DADOS NÃO MAIS PRELIMINARES PARA 2017 - DESCARTADO - +sinasc_pnv_bruf(unidade_da_federacao = "Espírito Santo")[2,2])
 
 #obitos acumulados de 0 a 1 anos para os mesmos anos
-ob10es_0a4 <- zr(sim_inf10_bruf(periodo = c("2014","2015","2016","2017"), unidade_da_federacao = "Espírito Santo")[2,2])
+ob10es_0a4 <- zr(sim_inf10_bruf(periodo = anos_0a4, unidade_da_federacao = "Espírito Santo")[2,2])
 #acrescimopop sem contar migrações nem mortes de 1 a 4
 popadices_0a4 <- nves_0a4 - ob10es_0a4
 
 ##mesmo que o anterior de 0 a 3
-nves_0a3 <- zr(sinasc_nv_bruf(periodo = c("2015","2016"), unidade_da_federacao = "Espírito Santo")[2,2]+sinasc_pnv_bruf(unidade_da_federacao = "Espírito Santo")[2,2])
+nves_0a3 <- zr(sinasc_nv_bruf(anos_0a3, unidade_da_federacao = "Espírito Santo")[2,2])
+               #SUPOSTAMENTE.... ver acima comentário +sinasc_pnv_bruf(unidade_da_federacao = "Espírito Santo")[2,2])
 
 #obitos acumulados de 0 a 1 anos para os mesmos anos
-ob10es_0a3 <- zr(sim_inf10_bruf(periodo = c("2015","2016","2017"), unidade_da_federacao = "Espírito Santo")[2,2])
+ob10es_0a3 <- zr(sim_inf10_bruf(periodo = anos_0a3, unidade_da_federacao = "Espírito Santo")[2,2])
 #acrescimopop sem contar migrações
 popadices_0a3 <- nves_0a3 - ob10es_0a3
 
@@ -309,10 +324,11 @@ matr_4e5_ufref <- nrow(mat_uf_17 %>% filter(NU_IDADE_REFERENCIA >= 4 &
 #popadic ES de 0 a 6 anos estimada por nascimentos e óbitos
 
 ##Calculando pop. adicional 0 a 6 por nascidos e óbitos infantis
-nves_0a6 <- zr(sinasc_nv_bruf(periodo = c("2012","2013","2014","2015","2016"), unidade_da_federacao = "Espírito Santo")[2,2]+sinasc_pnv_bruf(unidade_da_federacao = "Espírito Santo")[2,2])
+nves_0a6 <- zr(sinasc_nv_bruf(periodo = anos_0a6, unidade_da_federacao = "Espírito Santo")[2,2])
+               #SUPOSTAMENTE...+sinasc_pnv_bruf(unidade_da_federacao = "Espírito Santo")[2,2])
 
 #obitos acumulados de 0 a 1 anos para os mesmos anos
-ob10es_0a6 <- zr(sim_inf10_bruf(periodo = c("2012","2013","2014","2015","2016","2017"), unidade_da_federacao = "Espírito Santo")[2,2])
+ob10es_0a6 <- zr(sim_inf10_bruf(periodo = anos_0a6, unidade_da_federacao = "Espírito Santo")[2,2])
 #acrescimopop sem contar migrações nem mortes de 1 a 4
 popadices_0a6 <- nves_0a6 - ob10es_0a6
 
@@ -331,7 +347,7 @@ cob_efet_4a6ufref <- matr_4e5_ufref/popes4a6
 
 #Nº de creches e turmas de pré-escolas no ES / 1.000 crianças 
 
-esces17 <- escolas2017[(CO_UF ==  32 ) & 
+esces17 <- escolas[(CO_UF ==  32 ) & 
                         (IN_COMUM_CRECHE == 1 | IN_COMUM_PRE == 1 | 
                            IN_ESP_EXCLUSIVA_CRECHE == 1 | IN_ESP_EXCLUSIVA_PRE == 1),]
 
@@ -344,13 +360,13 @@ pubtotales <- nrow(esces17[TP_DEPENDENCIA != 4])/nrow(esces17)
 
 censoinfoturma <- c("ID_TURMA","NU_MATRICULAS","TP_ETAPA_ENSINO",
                     "CO_UF","CO_MUNICIPIO")
-turmas_es_17 <- turmas2017[CO_UF == 32 & TP_ETAPA_ENSINO <= 2,
+turmas_es_17 <- turmas[CO_UF == 32 & TP_ETAPA_ENSINO <= 2,
                           1:2 ]
 alturma_es_17 <- sum(turmas_es_17$NU_MATRICULAS)/length(unique(turmas_es_17$ID_TURMA))
 
 ed_res_es <- c("Espírito Santo",cobcrechebrutaes17,cob_efet_0a3ufref,
                    cobprescbrutaes17,cob_efet_4a6ufref,
-                escolas_es_mil_17,pubtotales,alturma_es_17)
+                escolas_es_mil_17,pubtotales,alturma_es_17,anosel[j])
 
 tab_ecd_ed <- rbind(tab_ecd_ed,ed_res_es, stringsAsFactors = FALSE)
 names(tab_ecd_ed) <- c("local",ind_nomes)
@@ -365,7 +381,8 @@ tab_bruta_ecd_ed <- rbind(tab_bruta_ecd_ed[1:78,], c("Espírito Santo",
                                               popadices_3a4,
                                               popes0a3,
                                               popes4a6,
-                                              popadices_0a6),
+                                              popadices_0a6,
+                                              anosel[j]),
                           stringsAsFactors = FALSE)
 names(tab_bruta_ecd_ed) <- nbruta
 write.csv2(tab_bruta_ecd_ed, 'data/tab_bruta_ecd_ed.csv')
@@ -373,4 +390,4 @@ write.csv2(tab_bruta_ecd_ed, 'data/tab_bruta_ecd_ed.csv')
 #  - Gasto público em educação com creches e pŕe-escolas por município, ES e BR (absoluto e per capita)
 #           -  Não há no Censo Escolar - procurar no #portal da transparencia(?)
 #           - há algum lugar que junte dados municipais?
-
+}
