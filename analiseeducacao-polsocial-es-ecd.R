@@ -1,10 +1,10 @@
-
+  
 #install.packages("devtools")
 #install.packages("stringi") 
 require(data.table)
 require(datasus)
 library(dplyr)
-#require(tidyverse)
+require(tidyverse)
 devtools::install_github("rodrigoesborges/microdadosBrasil")
 require(microdadosBrasil)
 #pasta para download dos dados brutos (quando muito grandes)
@@ -14,58 +14,103 @@ source("estimativas-populacao-ibge.R")
 source("R/zr_fun.R")
 
 #Período de Análise
-anosel <-  seq(2016,2017,1)
+anosel <-  seq(2014,2017,1)
 
 #Dados a selecionar de matrícula
-censoinfos <- c("NU_MES","NU_IDADE_REFERENCIA","NU_IDADE","TP_ETAPA_ENSINO","CO_MUNICIPIO", "CO_UF")
+#censoinfos <- c("NU_MES","NU_IDADE_REFERENCIA","NU_IDADE","TP_ETAPA_ENSINO","CO_MUNICIPIO", "CO_UF") - Ano de 2017
 
 ##Dados a selecionar de escola/turma
-censoinfoesc <- c("CO_UF", "CO_MUNICIPIO", "TP_DEPENDENCIA", 
-                  "IN_COMUM_CRECHE", "IN_COMUM_PRE",
-                  "IN_ESP_EXCLUSIVA_CRECHE", "IN_ESP_EXCLUSIVA_PRE")
+#censoinfoesc <- c("CO_UF", "CO_MUNICIPIO", "TP_DEPENDENCIA", "IN_COMUM_CRECHE", "IN_COMUM_PRE", "IN_ESP_EXCLUSIVA_CRECHE", "IN_ESP_EXCLUSIVA_PRE")
 
 #Dados a selecionar de turma
 
-censoinfoturma <- c("ID_TURMA","NU_MATRICULAS","TP_ETAPA_ENSINO",
-                    "CO_UF","CO_MUNICIPIO")
+#censoinfoturma <- c("ID_TURMA","NU_MATRICULAS","TP_ETAPA_ENSINO", "CO_UF","CO_MUNICIPIO")
+
+#Harmonização manual de variáveis
+cnhar <- data.frame("ano" = seq(2012,2017,1),
+                        "idade" = c(rep("NUM_IDADE",3),rep("NU_IDADE",3)),
+                        "idaderef" = c("NU_ANO",rep("NUM_IDADE_REFERENCIA",2),rep("NU_IDADE_REFERENCIA",3)),
+                        "ensino" = c(rep("FK_COD_ETAPA_ENSINO",3),rep("TP_ETAPA_ENSINO",3)),
+                        "municod" = c(rep("COD_MUNICIPIO_ESCOLA",3),rep("CO_MUNICIPIO",3)), 
+                        "ufcod" = c(rep("FK_COD_ESTADO_ESCOLA",3),rep("CO_UF",3)),
+                        "turma" = c(rep("PK_COD_TURMA",3),rep("ID_TURMA",3)),
+                        "nmat" = c(rep("NUM_MATRICULAS",3),rep("NU_MATRICULAS",3)),
+                        "muniet" = c(rep("FK_COD_MUNICIPIO",3),rep("CO_MUNICIPIO",3)),
+                        "depadm" = c(rep("ID_DEPENDENCIA_ADM",3),rep("TP_DEPENDENCIA",3)),
+                        "crec" = c(rep("ID_REG_INFANTIL_CRECHE",3),rep("IN_COMUM_CRECHE",3)),
+                        "cres" = c(rep("ID_ESP_INFANTIL_CRECHE",3),rep("IN_ESP_EXCLUSIVA_CRECHE",3)),
+                        "prec" = c(rep("ID_REG_INFANTIL_PREESCOLA",3),rep("IN_COMUM_PRE",3)),
+                        "pres" = c(rep("ID_ESP_INFANTIL_PREESCOLA",3),rep("IN_ESP_EXCLUSIVA_PRE",3)),
+                        stringsAsFactors = FALSE)
+
+##Atenção - NU_IDADE_REFERENCIA inexistente para anos <2013 , calculado a partir de NU_ANO (selecionado no lugar) e NU_IDADE 
+
+#Criação da lista de dados de matrícula, escola e turma de acordo com cada ano para filtragem dos dados
+info <- list()
+infoesc <- list()
+infotur <- list()
+
+for (i in 1:length(cnhar$ano)) {
+  info[[i]] <-  c("NU_MES",cnhar$idaderef[i],cnhar$idade[i],cnhar$ensino[i],cnhar$municod[i], cnhar$ufcod[i])
+  infoesc[[i]] <- c(gsub("_ESCOLA","",cnhar$ufcod[i]), cnhar$muniet[i],
+                    cnhar$depadm[i],cnhar$crec[i],cnhar$cres[i],
+                    cnhar$prec[i],cnhar$pres[i] )
+  infotur[[i]] <- c(cnhar$turma[i],cnhar$nmat[i],cnhar$ensino[i],gsub("_ESCOLA","",cnhar$ufcod[i]),cnhar$muniet[i])
+}
+
+
+
 
 
 #Função para preparar dados de matrícula e salvar como rds
-mat_prep <- function(periodo,dt,info) {
+tab_prep <- function(periodo,dt,info,tipo) {
   
   for (i in 1:length(periodo)) {
     #Baixar dados e descompactar caso não existam na pasta de dados locais
     #download_sourceData("CensoEscolar",i, unzip = T, root_path = dadoslocais)
-    #Descompactar - contorna problema em pacote microdados Brasil - Problema descompactar sub-arquivos 
-    dcpre <- paste0(dt,"/micro_censo_escolar_",periodo[i])
-    dtdir <- paste0(dcpre,"/",periodo[i],"/DADOS")
-    unzip(paste0(dcpre,".zip"),exdir = dcpre, overwrite = F)
-    dproj <- getwd()
-    setwd(dtdir)
-    system('unrar e -r -o- "*.rar"')
-    setwd(dproj)
-    #Definição de nomes
-    vn <- "matricula"
-    arq <- paste0("data/",vn,periodo[i],"subdc.rds")
-    
+    #####Descompactar - contorna problema em pacote microdados Brasil - Problema descompactar sub-arquivos 
+    #dcpre <- paste0(dt,"/micro_censo_escolar_",periodo[i])
+    #dtdir <- paste0(dcpre,"/",periodo[i],"/DADOS")
+    #unzip(paste0(dcpre,".zip"),exdir = dcpre, overwrite = F)
+    #dproj <- getwd()
+    #setwd(dtdir)
+    #system('unrar e -r -o- "*.rar"')
+    #setwd(dproj)
+    ######
+    ##Definição de nomes
+    vn <- tipo
+    arq <- paste0("data/",periodo[i],"-",vn,"-subdc.rds")
+    print(info[[i]])
     #Ler dados de matrícula do censo
-    censoed <- read_CensoEscolar(ft = vn,i = periodo[i], vars_subset = info, root_path = dt)
+    censoed <- read_CensoEscolar(ft = vn,i = periodo[i], vars_subset = info[[i]], root_path = dt, harmonize_varnames = TRUE)
     #Salva em arquivo rds
+    #Compatibiliza nomes das colunas
+    ##Atenção - NU_IDADE_REFERENCIA inexistente para anos <2013 , calculado a partir de NU_ANO e NU_IDADE 
+#    if (anosel[i] < 2013) {
+#       matriculas[matriculas$NU_MES > 5,2] <- matriculas[matriculas$NU_MES > 5,3]-1
+    #       matriculas[matriculas$NU_MES < 6,2] <- matriculas[matriculas$NU_MES < 6,3]
+    #    }
+    names(censoed) <- info[[length(info)]]
     write_rds(censoed,arq, compress = "gz")
   }
 }
 
 
-mat_prep(anosel,dadoslocais,censoinfos)
 
 #função para carregar dados do censo
 
-esc_carg <- function(ano, esc, turma, dt) {
+esc_carg <- function(ano, dt) {
   matriculas <- readRDS(paste0("data/matricula",ano,"subdc.rds"))
-  escolas <- read_CensoEscolar(ft = "escola",i = ano, vars_subset = esc, root_path = dt)
-  turmas <- read_CensoEscolar(ft = "turma",i = ano, vars_subset = turma, root_path = dt)
-  microd <- list(matriculas,escolas,turmas)
+  escolas <- readRDS(paste0("data/",ano,"-escola-subdc.rds"))
+  turmas <- readRDS(paste0("data/",ano,"-turma-subdc.rds"))
+  microd <- list("matriculas" = matriculas,"escolas" = escolas,"turmas" = turmas)
+  microd
 }
+
+tab_prep(anosel,dadoslocais,info,"matricula")
+tab_prep(anosel,dadoslocais,infoesc,"escola")
+tab_prep(anosel,dadoslocais,infotur,"turma")
+
 
 #Inicializar tabela de resultados
 ind_nomes = c("Tx de Cobertura Bruta - Creche",
@@ -108,14 +153,17 @@ municodigos <- municodigos[grepl(paste0("^",ufmat),municodigos$codigomun),]
 for (j in 1:length(anosel)) {
   
   #carregar dados correspondentes
-  esc_carg(anosel[j],censoinfoesc,censoinfoturma,dadoslocais)
+  microd <- esc_carg(anosel[j],dadoslocais)
   matriculas <- microd$matriculas
   escolas <- microd$escolas
   turmas <- microd$turmas
   ####vetores de anos para estimar população de:
+  ### 0 a 3:
+  anos_0a3 <-  as.character(seq(anosel[j]-2,anosel[j],1))
   ### 0 a 4:
-  anos_0a4 = seq(anosel[j]-3,anosel[j],1)
-  ### 
+  anos_0a4 <-  as.character(seq(anosel[j]-3,anosel[j],1))
+  ### 0 a 6
+  anos_0a6 <-  as.character(seq(anosel[j]-5, anosel[j],1))
 #fazer para seleção de municípios
 for (i in 1:length(municodigos$codigomun)) {
   mat_m17 <- matriculas[CO_MUNICIPIO == municodigos[i,1],-6]
@@ -133,8 +181,8 @@ for (i in 1:length(municodigos$codigomun)) {
   
   matr_0a3_mref <- nrow(mat_m17[ NU_IDADE_REFERENCIA < 4,1])
 
-  matr_0a3_mjun <- matr_0a3_mref - nrow(mat_m17[NU_IDADE == 4 & 
-                                                  NU_MES == 6,])
+#  matr_0a3_mjun <- matr_0a3_mref - nrow(mat_m17[NU_IDADE == 4 & 
+#                                                  NU_MES == 6,])
 
   popmtotalidade <- es17popidades[es17popidades$CodMunicipio ==
                                     municodigos[i,3],3]
@@ -372,7 +420,7 @@ tab_ecd_ed <- rbind(tab_ecd_ed,ed_res_es, stringsAsFactors = FALSE)
 names(tab_ecd_ed) <- c("local",ind_nomes)
 write.csv2(tab_ecd_ed,'data/tab_ecd_ed.csv')
 
-tab_bruta_ecd_ed <- rbind(tab_bruta_ecd_ed[1:78,], c("Espírito Santo",
+tab_bruta_ecd_ed <- rbind(tab_bruta_ecd_ed, c("Espírito Santo",
                                               crechees17,
                                               matr_0a3_ufref,
                                               presces17,
@@ -391,3 +439,4 @@ write.csv2(tab_bruta_ecd_ed, 'data/tab_bruta_ecd_ed.csv')
 #           -  Não há no Censo Escolar - procurar no #portal da transparencia(?)
 #           - há algum lugar que junte dados municipais?
 }
+  
