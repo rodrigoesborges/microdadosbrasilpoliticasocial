@@ -171,35 +171,175 @@ muni_cods <- unique(popmf$cod_mun[!(is.na(popmf$cod_mun))])
 
 
 #Nascidos vivos por ano e por município  
-nascidos <- lapply((anoin-6):afim,sinasc_nv_mun, linha = "Município", coluna = "Não ativa", conteudo = 1)
+nascidos <- rbindlist(lapply((anoin-6):afim,
+                   function(x) data.frame(sinasc_nv_mun(periodo = x),
+                                          ano = x, indicador ="nascidos vivos")))
 
 #OBS ao captar os obitos de uma vez, o que ocorre é a ausência de municípios sem registro de óbitos
-obitos0a1 <- lapply((anoin-6):afim,sim_inf10_mun, linha = "Município", coluna = "Não ativa", conteudo = 1)  
+obitos0a1 <- rbindlist(lapply((anoin-6):afim,
+                              function(x) data.frame(sim_inf10_mun(periodo = x),
+                                                     ano = x, indicador ="mortes 0 a 1 ano")))
 
 
-obitos1a4 <- lapply((anoin-6):afim,sim_obt10_mun, linha = "Município", 
-                    coluna = "Não ativa", conteudo = 1, faixa_etaria = "1 a 4 anos")  
-obitos5a9 <- lapply((anoin-6):afim,sim_obt10_mun, linha = "Município", 
-                    coluna = "Não ativa", conteudo = 1, faixa_etaria = "5 a 9 anos")  
+obitos1a4 <- rbindlist(lapply((anoin-6):afim,
+                              function(x) data.frame(sim_obt10_mun(faixa_etaria = "1 a 4 anos", periodo = x),
+                                                     ano = x, indicador ="mortes 1 a 4 anos")))
+
+obitos5a9 <- rbindlist(lapply((anoin-6):afim,
+                    function(x) data.frame(sim_obt10_mun(faixa_etaria = "5 a 9 anos", periodo = x),
+                                           ano = x, indicador ="mortes 5 a 9 anos")))
+
+#Consolidar os diferentes objetos em uma grande tabela só sus_nasc_ob OK
+sus_nasc_ob <- rbind(nascidos,obitos0a1,obitos1a4,obitos5a9, use.names = F)
+names(sus_nasc_ob)[2] <- "Nasc. ou Mortes"
+
+
+
 
 #Passos restantes - preparação dos dados
 #1) Adicionar zeros para municípios faltantes em cada um dos objetos
-#2) Consolidar as sublistas em uma mesma lista, adicionando o ano e o tipo de informação
-#3) Consolidar os diferentes objetos em uma grande tabela só sus_nasc_ob
 
 
 #Preparação de indicadores a partir da tábua de mortalidade ibge
-#1) Recuperar tabelão
-#2) Calcular proporção de mortes de 1 a 2 no contingente de 1 a 4 para cada ano
-#3) Calcular 
+#1) Recuperar tabela com tábuas de mortalidadez
+tm_ibge <- read.csv2('data/ibgem/tm_ibge_2006-2017.csv', stringsAsFactors = F)
+
+#Converter a numérico a coluna 1
+tm_ibge[,1] <- as.numeric(tm_ibge[,1])
+#80 a mais reduzido para 80
+tm_ibge[is.na(tm_ibge$Idades.Exatas..X.),1] <- 80
+#converter a numérico coluna de óbitos
+tm_ibge[,3] <- as.numeric(tm_ibge[,3])
+
+
+#2) Calcular proporção de mortes de 1 a 2 no contingente entre 1 e 5 para cada ano
+
+#Criação de função customizada para poder rodar em loop
+
+props_calc <- function(a) {
+  
+#Ex 2006
+#Denominador
+den_prop1 <- sum(tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. >= 1 & tm_ibge$Idades.Exatas..X. < 5, 3])
+
+#Indicador para 2
+ind_1a2 <- data.frame(valor = tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. == 1,3]/den_prop1, 
+                indicador = "prop. obitos de 1 a 2", ano = a, stringsAsFactors = F)
+
+#3) Calcular proporção de mortes de 2 a 3 no contingente entre 1 e 5 para cada ano
+ind_2a3 <- data.frame(valor = tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. == 2,3]/den_prop1,
+                indicador = "prop. obitos de 2 a 3", ano = a, stringsAsFactors = F)
+
+#4) Calcular proporção de mortes de 3 a 4 no contingente entre 1 e 5 para cada ano
+ind_3a4 <- data.frame(valor = tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. == 3,3]/den_prop1,
+                indicador = "prop. obitos de 3 a 4", ano = a, stringsAsFactors = F)
+#5) Calcular proporção de mortes de 4 a 5 no contingente entre 1 e 5 para cada ano
+ind_4a5 <- data.frame(valor = tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. == 4,3]/den_prop1,
+                indicador = "prop. obitos de 4 a 5", ano = a, stringsAsFactors = F)
+
+###_-----------
+#6) Calcular proporção de mortes de 5 a 6 no contingente entre 5 e 10 para cada ano
+#Denominador faixa etária 2
+den_prop2 <- sum(tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. >= 5 & tm_ibge$Idades.Exatas..X. < 10, 3])
+
+ind_5a6 <- data.frame(valor = tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. == 5,3]/den_prop2,
+                indicador = "prop. obitos de 5 a 6", ano = a, stringsAsFactors = F)
+
+#7) Calcular proporção de mortes de 6 a 7 no contingente entre 5 e 10 para cada ano
+ind_6a7 <- data.frame(valor = tm_ibge[tm_ibge$ano == a & tm_ibge$Idades.Exatas..X. == 6,3]/den_prop2,
+                indicador = "prop. obitos de 6 a 7", ano = a, stringsAsFactors = F)
+rbindlist(mget(ls(pattern = "ind_\\d")))
+}
+
+#Calcula todas as proporções e insere em uma tabela
+props_tm_ibge <- rbindlist(lapply(unique(tm_ibge$ano),props_calc))
+
+
+
 
 #Cálculo dos seguintes contingentes:
 
-# 1) População de 3 a 4 anos em ano x 
-#######  Ex. ano 2012 - 
-######1) pegar nascidos ano -3 - em 2009 (3 a 4 em 2012) - 
-######2) média de óbitos 0 a 1 ano- 3 e ano - 22009 e 2010
+#Pegar municípios incluidos na tabela de nascimentos e mortes datasus
+munic <- unique(sus_nasc_ob$Município)
+# A) População de 4 a 4+ anos em ano x 
+calc_4 <- function(dano = 2012,tabm = tabprops,tabsus = sus_nasc_ob) {
+  #############PROBLEMA - VETORIZAR PARA FAZER POR MUNICIPIO
+  ######1) pegar nascidos ano - 4 - em 2008 (4 a 5 em 2012) - 
+  
+  nasc <- tabsus[indicador == "nascidos vivos" &  ano == (dano-4),1:2]
+  
+  ######2) média de óbitos 0 a 1 ano - 4 e ano-3 - 2008 e 2009
+ obs0 <- tabsus[ano == (dano-4) & indicador == "mortes 0 a 1 ano",1:2]
+ obs0b <- tabsus[ano == (dano-3) & indicador == "mortes 0 a 1 ano",1:2]
+ 
+ obs0 <- full_join(obs0,obs0b, by = "Município") %>% 
+   mutate_if(is.numeric,coalesce,0) %>%
+  transmute(Município = Município,'Nasc. ou Mortes' = rowMeans(select(., starts_with("Nasc. ou Mortes.x"))))
+              #tabsus[ano == ]) 
+  ######3) óbitos 1 a 4 x prop. 2 acima ano -3
+ obs1 <- tabsus[ano == (dano -3) & indicador == "mortes 1 a 4 anos",1:2] 
+ obs1$`Nasc. ou Mortes` <- obs1[,2] *
+   props_tm_ibge[indicador == "prop. obitos de 1 a 2" & ano == dano-3]$valor
+ 
+  ######4) óbitos 1 a 4 x prop 3 ano - 2
+ obs2 <- tabsus[ano == (dano -2) & indicador == "mortes 1 a 4 anos",1:2]
+ obs2$`Nasc. ou Mortes` <- obs2[,2] *
+   props_tm_ibge[indicador == "prop. obitos de 2 a 3" & ano == dano-2]$valor
+  
+  ######5) Óbitos 1 a 4 x prop 4 ano - 1
+  obs3 <- tabsus[ano == (dano -1) & indicador == "mortes 1 a 4 anos",1:2]
+  obs3$`Nasc. ou Mortes` <- obs3[,2] *
+    props_tm_ibge[indicador == "prop. obitos de 3 a 4" & ano == dano-1]$valor
+ 
+  ######6) Óbitos 1 a 4 x prop 5 ano
+  obs4 <- tabsus[ano == dano & indicador == "mortes 1 a 4 anos",1:2]
+  obs4$`Nasc. ou Mortes` <- obs4[,2] *
+    props_tm_ibge[indicador == "prop. obitos de 4 a 5" & ano == dano]$valor
+  
+  ######6) Estimativa de população 4 a 4 + - Consolida 1 a 6
+pop_var <- nasc %>% full_join(obs0, by = "Município") %>% full_join(obs1, by = "Município") %>%
+  full_join(obs2, by = "Município") %>%  full_join(obs3, by = "Município") %>% 
+  full_join(obs4, by = "Município") %>% mutate_if(is.numeric,coalesce,0) %>%
+  transmute(Município = Município, ano = dano,
+          'pop4a5' = `Nasc. ou Mortes.x`-floor(`Nasc. ou Mortes.y`+
+                                             `Nasc. ou Mortes.y.y`+
+                                             `Nasc. ou Mortes.y.y.y`+
+                                             `Nasc. ou Mortes.x.x`+
+                                             `Nasc. ou Mortes.x.x.x`))
+  
+  
+}
 
+
+teste <- lapply(munic,calc_4, anosel,props_tm_ibge,sus_nasc_ob)
+
+
+
+
+
+
+
+
+# B) População de 5 a 6+ anos em ano x
+##### Ex. ano 2012 - 
+######1) pegar nascidos ano -6 e ano - 5 - em 2006, 2007 (5 a 6 em 2012) - 
+######2) média de óbitos 0 a 1 ano - 6 , ano - 5 
+######3) óbitos 1 a 4 x prop. 2 acima ano -5 + média de óbitos 0 a 1 ano ano - 5 ano - 4
+######4) óbitos 1 a 4 x prop. 2 + 3 acima ano -4
+######5) Óbitos 1 a 4 x prop 3+4 ano - 3
+######6) Óbitos 1 a 4 x prop 4+5 ano - 2
+######6) Óbitos 1 a 4 x prop 5 ano - 1 + Óbitos 5 a 9 x prop 6 ano -1
+######8) Óbitos 5 a 9 x prop 6+7 ano
+######9) Estimativa de população de 5 a 6+ - consolida 1 a 8
+
+#C) População de 0 a 3 em ano x
+######1) População de 0 a 4 - população de 4+ (A)
+
+#D) População de 4 a 6 anos em ano x
+######1) (A)+ (B)
+
+#E) População de 7 a 9 anos em ano x
+######1) População de 5 a 9 - (B)
 
 
 
