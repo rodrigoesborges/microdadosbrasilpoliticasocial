@@ -192,6 +192,8 @@ obitos5a9 <- rbindlist(lapply((anoin-6):afim,
 #Consolidar os diferentes objetos em uma grande tabela só sus_nasc_ob OK
 sus_nasc_ob <- rbind(nascidos,obitos0a1,obitos1a4,obitos5a9, use.names = F)
 names(sus_nasc_ob)[2] <- "Nasc. ou Mortes"
+sus_nasc_ob <- sus_nasc_ob %>% 
+  separate(Município,into = c("cod_mun","Município"), sep = " ",extra = "merge")
 
 
 
@@ -258,90 +260,95 @@ props_tm_ibge <- rbindlist(lapply(unique(tm_ibge$ano),props_calc))
 
 
 #Cálculo dos seguintes contingentes:
+# A) População de ano a ano (máx 9) em ano x
 
-#Pegar municípios incluidos na tabela de nascimentos e mortes datasus
-munic <- unique(sus_nasc_ob$Município)
-# A) População de 4 a 4+ anos em ano x 
-calc_4 <- function(dano = 2012,tabm = tabprops,tabsus = sus_nasc_ob) {
+calc_id <- function(dano = 2012,idade = 4, tabm = props_tm_ibge,tabsus = sus_nasc_ob) {
   #############PROBLEMA - VETORIZAR PARA FAZER POR MUNICIPIO
   ######1) pegar nascidos ano - 4 - em 2008 (4 a 5 em 2012) - 
   
-  nasc <- tabsus[indicador == "nascidos vivos" &  ano == (dano-4),1:2]
-  
+  nasc <- tabsus[indicador == "nascidos vivos" &  ano == (dano-idade),1:3]
+  names(nasc)[3] <- "nascimentos"
   ######2) média de óbitos 0 a 1 ano - 4 e ano-3 - 2008 e 2009
- obs0 <- tabsus[ano == (dano-4) & indicador == "mortes 0 a 1 ano",1:2]
- obs0b <- tabsus[ano == (dano-3) & indicador == "mortes 0 a 1 ano",1:2]
- 
- obs0 <- full_join(obs0,obs0b, by = "Município") %>% 
-   mutate_if(is.numeric,coalesce,0) %>%
-  transmute(Município = Município,'Nasc. ou Mortes' = rowMeans(select(., starts_with("Nasc. ou Mortes.x"))))
-              #tabsus[ano == ]) 
+  obs_0 <- tabsus[ano == (dano-idade) & indicador == "mortes 0 a 1 ano",1:3]
+  obs0b <- tabsus[ano == (dano+1-idade) & indicador == "mortes 0 a 1 ano",1:3]
+#  print(nasc[cod_mun == "355030",])
+  obs_0 <- full_join(obs_0,obs0b, by = c("cod_mun","Município")) %>% 
+    mutate_if(is.numeric,coalesce,0) %>%
+    transmute(cod_mun = cod_mun, Município = Município,'Nasc. ou Mortes' = rowMeans(select(., starts_with("Nasc. ou Mortes.x"))))
+  #print(obs_0[obs_0$cod_mun == "355030",])
   ######3) óbitos 1 a 4 x prop. 2 acima ano -3
- obs1 <- tabsus[ano == (dano -3) & indicador == "mortes 1 a 4 anos",1:2] 
- obs1$`Nasc. ou Mortes` <- obs1[,2] *
-   props_tm_ibge[indicador == "prop. obitos de 1 a 2" & ano == dano-3]$valor
- 
-  ######4) óbitos 1 a 4 x prop 3 ano - 2
- obs2 <- tabsus[ano == (dano -2) & indicador == "mortes 1 a 4 anos",1:2]
- obs2$`Nasc. ou Mortes` <- obs2[,2] *
-   props_tm_ibge[indicador == "prop. obitos de 2 a 3" & ano == dano-2]$valor
   
-  ######5) Óbitos 1 a 4 x prop 4 ano - 1
-  obs3 <- tabsus[ano == (dano -1) & indicador == "mortes 1 a 4 anos",1:2]
-  obs3$`Nasc. ou Mortes` <- obs3[,2] *
-    props_tm_ibge[indicador == "prop. obitos de 3 a 4" & ano == dano-1]$valor
- 
-  ######6) Óbitos 1 a 4 x prop 5 ano
-  obs4 <- tabsus[ano == dano & indicador == "mortes 1 a 4 anos",1:2]
-  obs4$`Nasc. ou Mortes` <- obs4[,2] *
-    props_tm_ibge[indicador == "prop. obitos de 4 a 5" & ano == dano]$valor
-  
+  for (i in 1:idade) {
+    anol <- dano -(idade - i)
+    ind_m <- ifelse(i<5,"mortes 1 a 4 anos","mortes 5 a 9 anos")
+    ind_p <- paste0("prop. obitos de ",i," a ",i+1)
+    n_o <- paste0("obs_",i)
+    assign(n_o, tabsus[ano == anol & indicador == "mortes 1 a 4 anos",1:3] )
+    set(get(n_o), j = "Nasc. ou Mortes", value = get(n_o)[,3] *
+    tabm[indicador == ind_p & ano == anol]$valor)
+    #print(get(n_o)[cod_mun == "355030"])
+  }
+   
   ######6) Estimativa de população 4 a 4 + - Consolida 1 a 6
-pop_var <- nasc %>% full_join(obs0, by = "Município") %>% full_join(obs1, by = "Município") %>%
-  full_join(obs2, by = "Município") %>%  full_join(obs3, by = "Município") %>% 
-  full_join(obs4, by = "Município") %>% mutate_if(is.numeric,coalesce,0) %>%
-  transmute(Município = Município, ano = dano,
-          'pop4a5' = `Nasc. ou Mortes.x`-floor(`Nasc. ou Mortes.y`+
-                                             `Nasc. ou Mortes.y.y`+
-                                             `Nasc. ou Mortes.y.y.y`+
-                                             `Nasc. ou Mortes.x.x`+
-                                             `Nasc. ou Mortes.x.x.x`))
-  
-  
+  indic <- paste0("população ",idade," anos")
+  obss <- mget(ls(pattern = "obs_\\d"))
+  pop_var <-  nasc %>% full_join(.,Reduce(function(...) full_join(..., by = c("cod_mun","Município")),
+                                          obss), by = c("cod_mun","Município")) %>%
+    mutate_if(is.numeric,coalesce,0) %>%
+    transmute('cod_mun' = cod_mun,'Município' = Município, 'população' = indic, ano = dano,
+              'valor' = `nascimentos`-
+                floor(rowSums(select(., starts_with("Nasc. ou Mortes")))))
+#  print(summary(pop_var))
+#  pop_var[pop_var$cod_mun == "355030",]
 }
 
+combosf <-  expand.grid(anosel,0:6)
+names(combosf) <- c("dano","idade")
 
-teste <- lapply(munic,calc_4, anosel,props_tm_ibge,sus_nasc_ob)
+pop_var <- rbindlist(lapply(1:nrow(combosf),
+                            function(x) do.call(mapply,c("calc_id",combosf))[,x]))
 
+#Eliminar municípios sem nome / totais
+pop_var <- pop_var[!(is.na(pop_var$Município)),]
 
-
-
-
-
-
-
-# B) População de 5 a 6+ anos em ano x
-##### Ex. ano 2012 - 
-######1) pegar nascidos ano -6 e ano - 5 - em 2006, 2007 (5 a 6 em 2012) - 
-######2) média de óbitos 0 a 1 ano - 6 , ano - 5 
-######3) óbitos 1 a 4 x prop. 2 acima ano -5 + média de óbitos 0 a 1 ano ano - 5 ano - 4
-######4) óbitos 1 a 4 x prop. 2 + 3 acima ano -4
-######5) Óbitos 1 a 4 x prop 3+4 ano - 3
-######6) Óbitos 1 a 4 x prop 4+5 ano - 2
-######6) Óbitos 1 a 4 x prop 5 ano - 1 + Óbitos 5 a 9 x prop 6 ano -1
-######8) Óbitos 5 a 9 x prop 6+7 ano
-######9) Estimativa de população de 5 a 6+ - consolida 1 a 8
-
-#C) População de 0 a 3 em ano x
-######1) População de 0 a 4 - população de 4+ (A)
-
-#D) População de 4 a 6 anos em ano x
-######1) (A)+ (B)
-
-#E) População de 7 a 9 anos em ano x
-######1) População de 5 a 9 - (B)
+#Considerar ao menos 1 criança em cada faixa etária
+pop_var[valor < 1,]$valor <- 1
 
 
+#Formatando longo para largo para facilitar subtotais
+pop_var_cols <- pop_var %>% spread(população,valor) 
+  mutate_if(is.numeric,coalesce,0)
+
+
+
+#Subtotais e proporções a aplicar
+pop_var_fx <- pop_var_cols %>% transmute(cod_mun = cod_mun,Município = Município, ano = ano,
+                                   pop_0a4 = rowSums(select(.,matches("população [0-4]"))),
+                                   prop_0a3 = rowSums(select(.,matches("população [0-3]")))/
+                                     rowSums(select(.,matches("população [0-4]"))),
+                                   prop_4 = rowSums(select(.,matches("população 4")))/
+                                     rowSums(select(.,matches("população [0-4]"))),
+                                   pop_5a6 = rowSums(select(.,matches("população [5-6]"))),
+                                   prop_5a6_0a4 = rowSums(select(.,matches("população [5-6]")))/
+                                     rowSums(select(.,matches("população [0-4]")))
+)
+
+
+
+
+popm_inf <- popmf[faixa_etaria %in% c("0 a 4 anos","5 a 9 anos") & !(is.na(cod_mun)),] %>% 
+  spread(.,faixa_etaria,populacao) %>% 
+  left_join(.,pop_var_fx, by = c("cod_mun","Município","ano"))
+
+popm_inf <- popm_inf %>% transmute(cod_mun = cod_mun, Município = Município, ano = ano,
+                      `0 a 3 anos` = `0 a 4 anos`*prop_0a3,
+                      `4 a 6 anos` = `0 a 4 anos`*(prop_4 + prop_5a6_0a4),
+                      `7 a 9 anos` = `5 a 9 anos` - `0 a 4 anos`*(prop_4 + prop_5a6_0a4))
+
+
+#Incorporado em passo anterior
+#pop_var <- pop_var %>% 
+# separate(Município, into = c("cod_mun","Município"), sep = " ", extra = "merge")
 
 
 
