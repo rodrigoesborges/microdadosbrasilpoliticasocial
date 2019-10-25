@@ -257,7 +257,10 @@ rbindlist(mget(ls(pattern = "ind_\\d")))
 props_tm_ibge <- rbindlist(lapply(unique(tm_ibge$ano),props_calc))
 
 
-
+#Temporario para ate 9
+props_tm_ibge <- rbind(props_tm_ibge,gambi)
+gambi <- props_tm_ibge[ano == 2006,]
+gambi$ano <- 2003
 
 #Cálculo dos seguintes contingentes:
 # A) População de ano a ano (máx 9) em ano x
@@ -274,21 +277,21 @@ calc_id <- function(dano = 2012,idade = 4, tabm = props_tm_ibge,tabsus = sus_nas
 #  print(nasc[cod_mun == "355030",])
   obs_0 <- full_join(obs_0,obs0b, by = c("cod_mun","Município")) %>% 
     mutate_if(is.numeric,coalesce,0) %>%
-    transmute(cod_mun = cod_mun, Município = Município,'Nasc. ou Mortes' = rowMeans(select(., starts_with("Nasc. ou Mortes.x"))))
+    transmute(cod_mun = cod_mun, Município = Município,'Nasc. ou Mortes' = rowMeans(select(., matches("Nasc. ou Mortes.*"))))
   #print(obs_0[obs_0$cod_mun == "355030",])
   ######3) óbitos 1 a 4 x prop. 2 acima ano -3
-  
+  if (idade == 0) {
+    obs_1 <- tabsus[cod_mun == "99999x",1:3]}
+  else{
   for (i in 1:idade) {
     anol <- dano -(idade - i)
     ind_m <- ifelse(i<5,"mortes 1 a 4 anos","mortes 5 a 9 anos")
     ind_p <- paste0("prop. obitos de ",i," a ",i+1)
     n_o <- paste0("obs_",i)
     assign(n_o, tabsus[ano == anol & indicador == "mortes 1 a 4 anos",1:3] )
-    set(get(n_o), j = "Nasc. ou Mortes", value = get(n_o)[,3] *
-    tabm[indicador == ind_p & ano == anol]$valor)
-    #print(get(n_o)[cod_mun == "355030"])
+    set(get(n_o), j = "Nasc. ou Mortes", value = get(n_o)[,3] * tabm[indicador == ind_p & ano == anol]$valor)
   }
-   
+  }
   ######6) Estimativa de população 4 a 4 + - Consolida 1 a 6
   indic <- paste0("população ",idade," anos")
   obss <- mget(ls(pattern = "obs_\\d"))
@@ -302,9 +305,10 @@ calc_id <- function(dano = 2012,idade = 4, tabm = props_tm_ibge,tabsus = sus_nas
 #  pop_var[pop_var$cod_mun == "355030",]
 }
 
-combosf <-  expand.grid(anosel,0:6)
+combosf <-  expand.grid(anosel,6:0)
 names(combosf) <- c("dano","idade")
 
+#Problema com a funçao - 0 a 1
 pop_var <- rbindlist(lapply(1:nrow(combosf),
                             function(x) do.call(mapply,c("calc_id",combosf))[,x]))
 
@@ -329,12 +333,20 @@ pop_var_fx <- pop_var_cols %>% transmute(cod_mun = cod_mun,Município = Municíp
                                    prop_4 = rowSums(select(.,matches("população 4")))/
                                      rowSums(select(.,matches("população [0-4]"))),
                                    pop_5a6 = rowSums(select(.,matches("população [5-6]"))),
+#ajuste temporario antes de estimar do datasus tudo de 0 a 9
                                    prop_5a6_0a4 = rowSums(select(.,matches("população [5-6]")))/
                                      rowSums(select(.,matches("população [0-4]")))
 )
+pop_var_fx <- pop_var_fx[!(is.na(pop_var_fx$prop_0a3)),]
+##ajuste temporario antes de estimar do datasus tudo de 0 a 9
+pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_4+pop_var_fx$prop_5a6_0a4),]$pop_5a6 <-
+  pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_4+pop_var_fx$prop_5a6_0a4),]$pop_0a4 *
+  pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_4+pop_var_fx$prop_5a6_0a4),]$prop_0a3
 
+pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_5a6_0a4),]$prop_5a6_0a4 <-
+  (pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_5a6_0a4),]$prop_0a3)/2
 
-
+##
 
 popm_inf <- popmf[faixa_etaria %in% c("0 a 4 anos","5 a 9 anos") & !(is.na(cod_mun)),] %>% 
   spread(.,faixa_etaria,populacao) %>% 
