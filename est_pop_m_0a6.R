@@ -316,7 +316,7 @@ pop_var[valor < 1,]$valor <- 1
 
 
 #Formatando longo para largo para facilitar subtotais
-pop_var_cols <- pop_var %>% spread(população,valor) 
+pop_var_cols <- pop_var %>% spread(população,valor) %>%
   mutate_if(is.numeric,coalesce,0)
 
 
@@ -338,7 +338,11 @@ pop_var_fx <- pop_var_cols %>% transmute(cod_mun = cod_mun,Município = Municíp
 
 popm_inf <- popmf[faixa_etaria %in% c("0 a 4 anos","5 a 9 anos") & !(is.na(cod_mun)),] %>% 
   spread(.,faixa_etaria,populacao) %>% 
-  left_join(.,pop_var_fx, by = c("cod_mun","Município","ano"))
+  left_join(.,pop_var_fx, by = c("cod_mun","Município","ano")) 
+
+#Corrigir NAs de municípios sem registros ref. datasus
+muns_nas <-  popm_inf[is.na(popm_inf$pop_0a4),]$cod_mun 
+popm_inf[is.na(popm_inf$pop_0a4),4:10] <- popm_inf[popm_inf$cod_mun %in% muns_nas & popm_inf$ano == 2013, 4:10]
 
 popm_inf <- popm_inf %>% transmute(cod_mun = cod_mun, Município = Município, ano = ano,
                       `0 a 3 anos` = `0 a 4 anos`*prop_0a3,
