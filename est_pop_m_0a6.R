@@ -358,37 +358,6 @@ popm_inf <- popm_inf %>% transmute(cod_mun = cod_mun, Município = Município, a
                       `7 a 9 anos` = `5 a 9 anos` - `5 a 9 anos`*(prop_5a6))
 popm_inf <- popm_inf  %>% mutate_if(is.numeric,coalesce,0)
 
-#Incorporado em passo anterior
-#pop_var <- pop_var %>% 
-# separate(Município, into = c("cod_mun","Município"), sep = " ", extra = "merge")
 
 
-
-# Passos se nao datasus/RIPSA - com dados do CENSO:
-#   
-#   Sinopse do Censo 2010 - ibge
-# 
-# 
-# Exemplo URL Cidade de Vitória
-# https://censo2010.ibge.gov.br/sinopse/webservice/frm_piramide.php?codigo=320530.
-
-
-
-
-###População por grupos de IDADE - IBGE PNAD Contínua trimestral - Tab 5918 - Capitais há - conferir depois
-#Grupos só de:
-#0 a 13
-#14 a 17
-#18 a 24
-#25 a 39
-#40 a 59
-#Total (inclui 60 ou mais)
-#t <- 5918
-#vpop <- 606
-#nivmun <- 6
-#grupoidade <- 58
-#anoin <- "201704"
-#anofim <- "201804"
-#cod_cat = rep("all", 1)
-#popmun <- API_SIDRA(t, nivel = nivmun, variavel = vpop, inicio = anoin, fim = anofim)
-
+saveRDS(popm_inf, "data/estimativas_pop_1a_infancia.rds", compress = "gzip")
