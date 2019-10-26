@@ -258,9 +258,11 @@ props_tm_ibge <- rbindlist(lapply(unique(tm_ibge$ano),props_calc))
 
 
 #Temporario para ate 9
-props_tm_ibge <- rbind(props_tm_ibge,gambi)
 gambi <- props_tm_ibge[ano == 2006,]
-gambi$ano <- 2003
+for (i in 2003:2005) {
+gambi$ano <- i
+props_tm_ibge <- rbind(props_tm_ibge,gambi)
+}
 
 #Cálculo dos seguintes contingentes:
 # A) População de ano a ano (máx 9) em ano x
@@ -305,7 +307,7 @@ calc_id <- function(dano = 2012,idade = 4, tabm = props_tm_ibge,tabsus = sus_nas
 #  pop_var[pop_var$cod_mun == "355030",]
 }
 
-combosf <-  expand.grid(anosel,6:0)
+combosf <-  expand.grid(anosel,0:9)
 names(combosf) <- c("dano","idade")
 
 #Problema com a funçao - 0 a 1
@@ -333,20 +335,11 @@ pop_var_fx <- pop_var_cols %>% transmute(cod_mun = cod_mun,Município = Municíp
                                    prop_4 = rowSums(select(.,matches("população 4")))/
                                      rowSums(select(.,matches("população [0-4]"))),
                                    pop_5a6 = rowSums(select(.,matches("população [5-6]"))),
-#ajuste temporario antes de estimar do datasus tudo de 0 a 9
-                                   prop_5a6_0a4 = rowSums(select(.,matches("população [5-6]")))/
-                                     rowSums(select(.,matches("população [0-4]")))
-)
-pop_var_fx <- pop_var_fx[!(is.na(pop_var_fx$prop_0a3)),]
-##ajuste temporario antes de estimar do datasus tudo de 0 a 9
-pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_4+pop_var_fx$prop_5a6_0a4),]$pop_5a6 <-
-  pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_4+pop_var_fx$prop_5a6_0a4),]$pop_0a4 *
-  pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_4+pop_var_fx$prop_5a6_0a4),]$prop_0a3
+                                   pop_5a9 = rowSums(select(.,matches("população [5-9]"))),
+                                   prop_5a6 = (rowSums(select(.,matches("população [5-6]"))))/ 
+                                     rowSums(select(.,matches("população [5-9]")))
+                                   ) %>% mutate_if(is.numeric,coalesce,0.05)
 
-pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_5a6_0a4),]$prop_5a6_0a4 <-
-  (pop_var_fx[pop_var_fx$prop_0a3<(pop_var_fx$prop_5a6_0a4),]$prop_0a3)/2
-
-##
 
 popm_inf <- popmf[faixa_etaria %in% c("0 a 4 anos","5 a 9 anos") & !(is.na(cod_mun)),] %>% 
   spread(.,faixa_etaria,populacao) %>% 
@@ -355,12 +348,15 @@ popm_inf <- popmf[faixa_etaria %in% c("0 a 4 anos","5 a 9 anos") & !(is.na(cod_m
 #Corrigir NAs de municípios sem registros ref. datasus
 muns_nas <-  popm_inf[is.na(popm_inf$pop_0a4),]$cod_mun 
 popm_inf[is.na(popm_inf$pop_0a4),4:10] <- popm_inf[popm_inf$cod_mun %in% muns_nas & popm_inf$ano == 2013, 4:10]
+muns_nas5 <- popm_inf[is.na(popm_inf$pop_5a6),]$cod_mun 
+popm_inf[is.na(popm_inf$pop_5a6),4:10] <- popm_inf[popm_inf$cod_mun %in% muns_nas5 & popm_inf$ano == 2013, 4:10]
+#
 
 popm_inf <- popm_inf %>% transmute(cod_mun = cod_mun, Município = Município, ano = ano,
                       `0 a 3 anos` = `0 a 4 anos`*prop_0a3,
-                      `4 a 6 anos` = `0 a 4 anos`*(prop_4 + prop_5a6_0a4),
-                      `7 a 9 anos` = `5 a 9 anos` - `0 a 4 anos`*(prop_4 + prop_5a6_0a4))
-
+                      `4 a 6 anos` = `0 a 4 anos`*(prop_4) +`5 a 9 anos`*(prop_5a6),
+                      `7 a 9 anos` = `5 a 9 anos` - `5 a 9 anos`*(prop_5a6))
+popm_inf <- popm_inf  %>% mutate_if(is.numeric,coalesce,0)
 
 #Incorporado em passo anterior
 #pop_var <- pop_var %>% 
