@@ -246,6 +246,8 @@ ind_ecd_ed <- function (a = 2017, tbase = popm_inf) {
 
 tab_ecd_ed_indicadores <- rbindlist(lapply(anosel,ind_ecd_ed))
 
+tab_ecd_ed_indicadores <- tab_ecd_ed_indicadores %>% pivot_longer(c(-1,-2,-3),"indicador",values_to = "valor")
+
 write.csv2(tab_ecd_ed_indicadores,"data/2012-2017-tab_ecd_ed.csv")
 #  - Gasto público em educação com creches e pŕe-escolas por município, ES e BR (absoluto e per capita)
 #           -  Não há no Censo Escolar - procurar no #portal da transparencia(?)
