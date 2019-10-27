@@ -4,6 +4,7 @@
 
 #Pacotes necessários
 library(tidyverse)
+devtools::install_github("rpradosiqueira/brazilmaps")
 library(brazilmaps)
 library(plotly)
 
@@ -15,9 +16,9 @@ dadoslocais <- "~/RLocalData/ecd-indicadores"
 anosel <- seq(2012,2017,1)
 
 #Primeira tentativa de mapa: dados de 
-educa <- read.csv2(paste0("data/2012-2017-tab_ecd_ed.csv"), stringsAsFactors = F)[,-1]
-f <- municipesord$CodMunicipio
-educa <- cbind(codmunicipio = c(as.numeric(levels(f))[f],32),educa)
+educa <- read.csv2(paste0("data/2012-2017-tab_ecd_ed.csv"))[,-1]
+#f <- municipesord$CodMunicipio
+#educa <- cbind(codmunicipio = c(as.numeric(levels(f))[f],32),educa)
 
 
 #pegar o mapa e juntar aos dados de educação
@@ -25,35 +26,38 @@ educa <- cbind(codmunicipio = c(as.numeric(levels(f))[f],32),educa)
 #Mapa municípios ES
 mapa_m_es <- get_brmap("City", geo.filter = list(State = 32)) 
 
-#taxa de cobertura efetiva de creche
-tx_creche <- educa[educa$codmunicipio != 32, c(1,2,4,6,10)]
 
-#Retira o final da UF do nome das cidades
-tx_creche$local <- gsub("(.*) - ES","\\1",tx_creche$local)
+#Indicadores do ES
+educa <- educa %>% filter(grepl("^32",cod_mun))
 
-#Como número a taxa
+#Nome dos indicadores
+n_ind_ed <- levels(educa$indicador)
 
-tx_creche$Tx.de.Cobertura.Efetiva...Creche <- as.numeric(tx_creche$Tx.de.Cobertura.Efetiva...Creche)
+tx <- educa %>% filter(indicador == n_ind_ed[8])
+
 
 #Estratificar as coberturas para obter menos cores
-tx_creche$taxa <- cut(tx_creche$Tx.de.Cobertura.Efetiva...Creche,
+tx$taxa <- cut(tx$value,
                       c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 #Para plotly
-tx_creche$texto <- with(tx_creche, paste(`local`," - ", `Tx.de.Cobertura.Efetiva...Creche`))
+tx$texto <- with(tx, paste(`Município`," - ", `value`))
 #Compatibiliza bases para filtragem por código de município
-mapa_m_es$codmunicipio <- as.numeric(substr(mapa_m_es$City,0,6))
+mapa_m_es$cod_mun <- as.numeric(substr(mapa_m_es$City,0,6))
 
+
+#problema kernels
+Sys.setenv("OPENBLAS_CORETYPE"="Haswell")
 for (i in 1:length(anosel)) {
-  nome <- paste0("mapa_","tx_creche ",anosel[i])
-  tx <- tx_creche[tx_creche$Ano == anosel[i],]
+  nome <- paste0("mapa_","indicador",anosel[i])
+  tx <- tx[tx$ano == anosel[i],]
   mapa <- mapa_m_es %>%
     left_join(tx) %>%
     ggplot() +
-    geom_sf(aes(fill = tx$taxa),
+    geom_sf(aes(fill = taxa),
             #ajusta tamanho das linhas
             colour = "black", size = 0.1) +
     #muda escala de cores
-    scale_fill_viridis_d(option = 2, begin = 0.8, end = 0.2) +
+    scale_fill_viridis_d(option = 2, begin = 1, end = 0.2) +
     theme(panel.grid = 
             element_line(colour = "transparent"),
           panel.background = element_blank(),
