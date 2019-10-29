@@ -5,7 +5,6 @@ library(survey)
 library(dbplyr)
 library(dplyr)
 library(srvyr)
-library(multicore)
 
 #período de análise
 anosel <- seq(2012,2017,1)
@@ -46,11 +45,11 @@ calc_ind_cu <- function(ano = 2017) {
     #cadunicoecd <- dbGetQuery(db , paste0( "SELECT * FROM pessoa_" ,ano," WHERE idade < 7" ) )
     #dbGetQuery( db , "SELECT stype , dnum , cname , SUM( pw ) FROM apiclus1 GROUP BY stype , dnum , cname" ) )
 # because this is near-instantaneous, no matter how much data y
-    print(str(cadunicoecd))
+    #print(str(cadunicoecd))
 #    for (i in 1:length(municodigos$codigomun)) {
       # exp <- as.character(municodigos$codigomun[i])
       # echo(exp)
-      ecdpbfmun <- svyby(~I(idade < 7),~I(cd_ibge), design = cadunicoecd, svytotal,na.rm = TRUE, multicore = T)
+      ecdpbfmun <- svyby(~I(idade < 7),~cd_ibge, design = cadunicoecd, svytotal,na.rm = TRUE, multicore = T)
 
       print (ecdpbfmun)
       cad_mun_0a6 <- sum(ecdpbfmun[,3])
@@ -67,7 +66,7 @@ calc_ind_cu <- function(ano = 2017) {
 
 
 
-tab_ecd_cadun <- rbindlist(lapply(anosel, ))
+tab_ecd_cadun <- rbindlist(lapply(anosel, calc_ind_cu))
 
 
 
