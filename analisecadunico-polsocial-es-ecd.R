@@ -36,38 +36,35 @@ popm_inf <- readRDS("data/estimativas_pop_1a_infancia.rds")
 
 popm_inf <- popm_inf %>% mutate(pop0a6 = round(`0 a 3 anos`+`4 a 6 anos`, digits = 0))
 
-calc_ind_cu <- function(ano = 2017) {
-  ano <- 2017
-  for (j in 1:length(ano)) {
+#A função deve incluir campo para UF
+
+calc_ind_cu <- function(ano = 2017, uf = "32") {
+  ufc <- paste0("^",uf)
     cadunicoecd<- cad_carr(ano)
-    
+    cadunicoecd <- subset(cadunicoecd, idade <7 & grepl("^32",cd_ibge))
     #db <- dbConnect( MonetDBLite() , cadunicoecd$db$dbname)
     #cadunicoecd <- dbGetQuery(db , paste0( "SELECT * FROM pessoa_" ,ano," WHERE idade < 7" ) )
     #dbGetQuery( db , "SELECT stype , dnum , cname , SUM( pw ) FROM apiclus1 GROUP BY stype , dnum , cname" ) )
-# because this is near-instantaneous, no matter how much data y
-    #print(str(cadunicoecd))
-#    for (i in 1:length(municodigos$codigomun)) {
-      # exp <- as.character(municodigos$codigomun[i])
-      # echo(exp)
-      ecdpbfmun <- svyby(~I(idade < 7),~cd_ibge, design = cadunicoecd, svytotal,na.rm = TRUE, multicore = T)
+      ecdpbfmun <- svyby(~I(marc_pbf > 0),~cd_ibge,design = cadunicoecd, svytotal,na.rm = TRUE, multicore = T)
 
-      print (ecdpbfmun)
-      cad_mun_0a6 <- sum(ecdpbfmun[,3])
-      # echo(cad_mun_0a6)
-      #ecdpbfmun$cd_ibge <- substr(ecdpbf)
-      ecdpbfmun <- ecdpbfmun %>% left_join(popm_inf[ano = ano,c(1,2,7)], by = ) 
-      bf_mun_0a6 <- ecdpbfmun[2,3]
+      #Compatibiliza com códigos do datasus
+      ecdpbfmun$cd_ibge <- substr(ecdpbfmun$cd_ibge,1,6)
       
-      bf_mun_0a6_pop <- bf_mun_0a6/
-        tab_ecd_cadun <- rbind(tab_ecd_cadun,c(municodigos$municipio[i],bf_mun_0a6,bf_mun_0a6_pop))  
-#    }
-  }
+      names(ecdpbfmun) <- c("cod_mun","n_pbf_cadunico", "ben_pbf", "desv_pad_n_pbf", "desv_pad_pbf")
+      
+      ecdpbfmun <- ecdpbfmun %>% right_join(popm_inf[popm_inf$ano == ano  & grepl(ufc,popm_inf$cod_mun),c(1,2,7)], by = "cod_mun") 
+      
+      dbDisconnect(cadunicoecd$db$connection)
+        
+      ecdpbfmun <- ecdpbfmun %>% mutate("prop_pinf_cadunico" = (n_pbf_cadunico+ben_pbf)/pop0a6, "pbf_pop0a6" = ben_pbf/pop0a6, ano = ano)
+      
+      ecdpbfmun 
 }
 
 
 
-tab_ecd_cadun <- rbindlist(lapply(anosel, calc_ind_cu))
-
+tab_ecd_cadunico <- rbindlist(lapply(anosel, calc_ind_cu))
+saveRDS(tab_ecd_cadunico, "data/2012-2017-indicadores-cadunico-ES.rds", compress = "gzip")
 
 
 #### Para o ES
