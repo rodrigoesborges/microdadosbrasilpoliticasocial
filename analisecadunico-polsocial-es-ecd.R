@@ -5,7 +5,8 @@ library(survey)
 library(dbplyr)
 library(dplyr)
 library(srvyr)
-
+library(gsubfn)
+library(data.table)
 #período de análise
 anosel <- seq(2012,2017,1)
 
@@ -38,14 +39,17 @@ popm_inf <- popm_inf %>% mutate(pop0a6 = round(`0 a 3 anos`+`4 a 6 anos`, digits
 
 #A função deve incluir campo para UF
 
-calc_ind_cu <- function(ano = 2017, uf = "32") {
-  ufc <- paste0("^",uf)
-    cadunicoecd<- cad_carr(ano)
-    cadunicoecd <- subset(cadunicoecd, idade <7 & grepl("^32",cd_ibge))
-    #db <- dbConnect( MonetDBLite() , cadunicoecd$db$dbname)
+calc_ind_cu <- function(ano = 2017, uf = 32) {
+    ufc <- paste0("^",uf)
+    dado <- paste0("CadUnico/cadunico ",ano," design.rds")
+    cadunicoecd<- cad_carr(ano, dado)
+    #filtroc <- gsubfn("%s",ufc,"cd_ibge %like% '%s' & idade < 7 & marc_pbf")
+    cadunico_ecd <- subset(cadunicoecd, grepl("^32",cd_ibge) & idade < 7 & marc_pbf)
+    
+    #db <- dbConnect( MonetDBLite() , cadunicoecd$db$dbname).
     #cadunicoecd <- dbGetQuery(db , paste0( "SELECT * FROM pessoa_" ,ano," WHERE idade < 7" ) )
     #dbGetQuery( db , "SELECT stype , dnum , cname , SUM( pw ) FROM apiclus1 GROUP BY stype , dnum , cname" ) )
-      ecdpbfmun <- svyby(~I(marc_pbf > 0),~cd_ibge,design = cadunicoecd, svytotal,na.rm = TRUE, multicore = T)
+      ecdpbfmun <- svyby(~I(marc_pbf > 0),~cd_ibge,cadunico_ecd, svytotal,na.rm = TRUE, multicore = T)
 
       #Compatibiliza com códigos do datasus
       ecdpbfmun$cd_ibge <- substr(ecdpbfmun$cd_ibge,1,6)
@@ -54,13 +58,12 @@ calc_ind_cu <- function(ano = 2017, uf = "32") {
       
       ecdpbfmun <- ecdpbfmun %>% right_join(popm_inf[popm_inf$ano == ano  & grepl(ufc,popm_inf$cod_mun),c(1,2,7)], by = "cod_mun") 
       
-      dbDisconnect(cadunicoecd$db$connection)
+      dbDisconnect(cadunicoecd$db$dbname)
         
       ecdpbfmun <- ecdpbfmun %>% mutate("prop_pinf_cadunico" = (n_pbf_cadunico+ben_pbf)/pop0a6, "pbf_pop0a6" = ben_pbf/pop0a6, ano = ano)
       
       ecdpbfmun 
 }
-
 
 
 tab_ecd_cadunico <- rbindlist(lapply(anosel, calc_ind_cu))
