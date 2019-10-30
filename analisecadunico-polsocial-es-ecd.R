@@ -56,7 +56,7 @@ calc_ind_cu <- function(ano = 2017, uf = 32) {
       
       names(ecdpbfmun) <- c("cod_mun","n_pbf_cadunico", "ben_pbf", "desv_pad_n_pbf", "desv_pad_pbf")
       
-      ecdpbfmun <- ecdpbfmun %>% right_join(popm_inf[popm_inf$ano == ano  & grepl(ufc,popm_inf$cod_mun),c(1,2,7)], by = "cod_mun") 
+      ecdpbfmun <- ecdpbfmun %>% right_join(popm_inf[popm_inf$ano == ano  & grepl("^32",popm_inf$cod_mun),c(1,2,7)], by = "cod_mun") 
       
       dbDisconnect(cadunicoecd$db$dbname)
         
