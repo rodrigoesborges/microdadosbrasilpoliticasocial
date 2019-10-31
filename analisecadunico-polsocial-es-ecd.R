@@ -74,8 +74,9 @@ calc_ind_cu <- function(ano = 2017, uf = 32) {
 
 
 tab_ecd_cadunico <- rbindlist(lapply(anosel, calc_ind_cu))
-saveRDS(tab_ecd_cadunico, "data/2012-2017-indicadores-cadunico-ES.rds", compress = "gzip")
 
+saveRDS(tab_ecd_cadunico, "data/2012-2017-indicadores-cadunico-ES.rds", compress = "gzip")
+write.csv2(tab_ecd_cadunico,"data/2012-2017-indicadores-cadunico-ES.csv", row.names = F )
 ###Adaptar para calcular indicadores de todos os municípios, estado a estado
 # combosf <-  expand.grid(anosel,0:9)
 # names(combosf) <- c("dano","idade")
