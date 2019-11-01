@@ -47,7 +47,8 @@ nasc_v_est_partos <- rbindlist(lapply(anosel,
                                       function(x) data.frame(ano = x, sinasc_nv_mun(periodo = x, coluna = "Tipo de gravidez"), 
                                                              stringsAsFactors = F))) %>%
   separate(Município,into = c("cod_mun","Município"), sep = " ",extra = "merge", fill = "right") 
-nasc_v_est_partos <- nasc_v_est_partos %>% mutate(estimativa_partos = Total - Dupla - 2*Tripla.e.mais)
+nasc_v_est_partos <- nasc_v_est_partos %>% 
+  transmute(cod_mun = cod_mun, ano = ano, Município = Município, estimativa_partos = Total - Dupla - 2*Tripla.e.mais)
 #  gather(indicador, valor, c(-1,-2,-3)) %>% mutate(indicador = paste("Gravidez ",indicador))
 
 mortes_parto_ind <- mortes_parto_ind %>% left_join(nasc_v_est_partos, by = c("cod_mun", "Município", "ano")) 
@@ -60,7 +61,7 @@ mortes_parto_ind[is.na(mortes_parto_ind$estimativa_partos),]$estimativa_partos <
 mortes_parto_ind$mortes_por_1000_partos <- 1000*mortes_parto_ind$Óbitos.mulheres.idade.fértil/mortes_parto_ind$estimativa_partos
 
 mortes_parto_ind <- transmute(mortes_parto_ind, cod_mun = cod_mun, Município = Município, ano = ano, 
-                              mortes_mil_partos = mortes_por_1000_partos)
+                              mortes_mil_partos = mortes_por_1000_partos, mortes_por_1000_m = mortes_por_1000)
 #B) Tipo de Parto
 nasc_v_tipo_parto <- rbindlist(lapply(anosel,
                                     function(x) data.frame(ano = x, sinasc_nv_mun(periodo = x, coluna = "Tipo de parto"), 
