@@ -1,6 +1,6 @@
 #Requisitos
 #Pacote datasus
-devtools::install_github("rodrigoesborges/datasus", force = T)
+devtools::install_github("rodrigoesborges/datasus")
 require(datasus) 
 require(tidyverse)
 require(dplyr)
@@ -34,7 +34,7 @@ popmf_det$mulheresf <- (popmf_det$`15 a 19 anos`+
   popmf_det$`40 a 44 anos`  + popmf_det$`45 a 49 anos`)/2
 
 #indicador de mortes no parto por 1.000 mulheres na idade fértil
-mortes_parto_ind <- mortes_parto %>% right_join(popmf_det[,c(1,2,3,length(popmf_det))], by = c("cod_mun","Município","ano")) 
+mortes_parto_ind <- mortes_parto %>% select(1:4) %>% right_join(popmf_det[,c(1,2,3,length(popmf_det))], by = c("cod_mun","Município","ano")) 
 
 mortes_parto_ind[is.na(mortes_parto_ind)] <- 0
 
@@ -101,13 +101,16 @@ nasc_v_idadem[is.na(nasc_v_idadem)] <- 0
 ###Indicador possível interessante - taxa de fecundidade por faixa etária número de nascidos vivos x 1.000 da faixa:
 #Pegar só de adolescentes
 
-fecundidade_adolescente <- nasc_v_idadem %>% filter(faixa_etaria_mae %in% c("10 a 14 anos","15 a 19 anos")) %>% 
-  right_join(popmf_det[,c(1,2,3,6,9,10,11)], by = c("cod_mun","Município","ano")) %>% mutate("10 a 19 anos" = (`10 a 14 anos`+`15 a 19 anos`)/2)
+m_id_10a19 <- popmf_det[,c(1,2,3,6,9,10,11)] %>% transmute(ano = ano, cod_mun = cod_mun, m_10a_19 = `10 a 14 anos`+`15 a 19 anos`)
+fecundidade_adolescente <- nasc_v_idadem %>% 
+  filter(faixa_etaria_mae %in% c("10 a 14 anos","15 a 19 anos")) %>%
+  pivot_wider(names_from = faixa_etaria_mae,values_from = valor) %>% 
+  transmute(ano = ano, cod_mun = cod_mun, Município = Município, `f. 10 a 19 anos` = `10 a 14 anos`+ `15 a 19 anos`) %>%
+  right_join(m_id_10a19, by = c("cod_mun","ano")) 
 
-fecundidade_adolescente[is.na(fecundidade_adolescente$valor),]$valor <- 0
+fecundidade_adolescente[is.na(fecundidade_adolescente$`f. 10 a 19 anos`),]$`f. 10 a 19 anos` <- 0
   
-fecundidade_adolescente$nascidosporadolescente <- 1000*fecundidade_adolescente$valor/fecundidade_adolescente$`10 a 19 anos`
-
+fecundidade_adolescente$nascidosporadolescente <- 1000*fecundidade_adolescente$`f. 10 a 19 anos`/fecundidade_adolescente$m_10a_19
 fecundidade_adolescente_ind <- fecundidade_adolescente %>% transmute(cod_mun = cod_mun, Município = Município, ano = ano,
                                                                  fecundidade_adolescente = nascidosporadolescente)
 
