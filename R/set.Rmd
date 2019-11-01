@@ -1,0 +1,94 @@
+---
+title: "Resumos Estatísticos Estatísticas Geradas"
+author: "Rodrigo Borges"
+date: "31/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+require(dplyr)
+require(tidyverse)
+require(qwraps2)
+saude <- read.csv2(paste0(getwd(),"/../data/2012-2017-indicadores_saude_brutos.csv"))
+
+saude <- saude %>% distinct()
+obj_tit <- names(saude[,-1:-3])
+
+saude <- saude %>% group_by(ano)
+orig_opt <- options()$qwraps2_markup
+options(qwraps2_markup = "markdown")
+
+sumarios_auto <- saude %>% select(4:10) %>% qsummary(.)
+resultados_saude_sumario <- summary_table(saude,sumarios_auto)
+pt_n <- c("Mínimo","Mediana","Média","Máximo",rep(c("Mínimo","Mediana","Média","Máximo","Desconhecidos"),7))
+
+saude_es <- saude %>% filter(grepl("^32",cod_mun))
+res_sa_es <- summary_table(saude_es,sumarios_auto)
+
+
+pt_n_as <- c(rep(c("Mínimo","Mediana","Média","Máximo"),2),rep(c("Mínimo","Mediana","Média","Máximo","Desconhecidos"),4))
+cadunicoecd <- readRDS(paste0(getwd(),"/../data/2012-2017-indicadores-cadunico-ES.rds"))
+cadunicoecd <- cadunicoecd %>% group_by(ano)
+cadunicoecd <- cadunicoecd[,c(1,6,10,2:5,7:9)]
+sum_as_auto <- cadunicoecd %>% select(8,3,5,4,9:10) %>% qsummary(.)
+res_as_sumario <- summary_table(cadunicoecd,sum_as_auto)
+
+educa <- read.csv2(paste0(getwd(),"/../data/2012-2017-tab_ecd_ed.csv"))[,-1]
+educa <- educa %>% pivot_wider(names_from = indicador, values_from = value)
+educa <- educa %>% group_by(ano)
+sum_ed_auto <- educa %>% select(-3:-1) %>% qsummary(.)
+resultados_educacao_sumario <- summary_table(educa,sum_ed_auto)
+
+pt_n_ed <- c("Mínimo","Mediana","Média","Máximo",rep(c("Mínimo","Mediana","Média","Máximo","Desconhecidos"),10))
+
+educa <- educa %>% filter(grepl("^32",cod_mun))
+res_ed_es <- summary_table(educa, sum_ed_auto)
+
+```
+
+
+
+#Resumos Assistência Social - CadUnico
+Resumos do Espírito Santo
+```{r res_as_es, echo=FALSE}
+qable(res_as_sumario, 
+      rgroup = setNames(c(4,4,rep(5,4)),names(sum_as_auto)), cnames = 2012:2017,rnames = pt_n_as)
+
+```
+
+
+## Resumos estatísticos de Educação
+
+
+Resumos Nacionais
+```{r resultados_educacao, echo=FALSE}
+qable(resultados_educacao_sumario, rgroup = setNames(c(4,rep(5,10)),names(sum_ed_auto)), cnames = 2012:2017,rnames = pt_n_ed)
+```
+
+
+Resumos do Espírito Santo
+
+```{r res_ed_es, echo=FALSE}
+qable(res_ed_es, rgroup = setNames(c(4,rep(5,10)),names(sum_ed_auto)), cnames = 2012:2017,rnames = pt_n_ed)
+```
+
+
+## Resumos estatísticos de Saúde
+
+
+Resumos Nacionais
+```{r resultados_saude, echo=FALSE}
+qable(resultados_saude_sumario, rgroup = setNames(c(4,rep(5,7)),names(sumarios_auto)), cnames = 2012:2017,rnames = pt_n)
+```
+
+
+Resumos do Espírito Santo
+
+```{r res_sa_es, echo=FALSE}
+qable(res_sa_es, rgroup = setNames(c(4,rep(5,7)),names(sumarios_auto)), cnames = 2012:2017,rnames = pt_n)
+```
+
+
