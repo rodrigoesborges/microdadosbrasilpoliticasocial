@@ -21,9 +21,9 @@ saude <- saude %>% group_by(ano)
 orig_opt <- options()$qwraps2_markup
 options(qwraps2_markup = "markdown")
 
-sumarios_auto <- saude %>% select(4:10) %>% qsummary(.)
+sumarios_auto <- saude %>% select(3:11) %>% qsummary(.)
 resultados_saude_sumario <- summary_table(saude,sumarios_auto)
-pt_n <- c("Mínimo","Mediana","Média","Máximo",rep(c("Mínimo","Mediana","Média","Máximo","Desconhecidos"),7))
+pt_n <- c("Mínimo","Mediana","Média","Máximo",rep(c("Mínimo","Mediana","Média","Máximo","Desconhecidos"),8))
 
 saude_es <- saude %>% filter(grepl("^32",cod_mun))
 res_sa_es <- summary_table(saude_es,sumarios_auto)
@@ -81,14 +81,14 @@ qable(res_ed_es, rgroup = setNames(c(4,rep(5,10)),names(sum_ed_auto)), cnames = 
 
 Resumos Nacionais
 ```{r resultados_saude, echo=FALSE}
-qable(resultados_saude_sumario, rgroup = setNames(c(4,rep(5,7)),names(sumarios_auto)), cnames = 2012:2017,rnames = pt_n)
+qable(resultados_saude_sumario, rgroup = setNames(c(4,rep(5,8)),names(sumarios_auto)), cnames = 2012:2017,rnames = pt_n)
 ```
 
 
 Resumos do Espírito Santo
 
 ```{r res_sa_es, echo=FALSE}
-qable(res_sa_es, rgroup = setNames(c(4,rep(5,7)),names(sumarios_auto)), cnames = 2012:2017,rnames = pt_n)
+qable(res_sa_es, rgroup = setNames(c(4,rep(5,8)),names(sumarios_auto)), cnames = 2012:2017,rnames = pt_n)
 ```
 
 

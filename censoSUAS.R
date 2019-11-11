@@ -11,15 +11,40 @@ require("devtools")
 require(haven)
 require(survey)
 require(data.table)
-
+require(dplyr)
 
 #CENSO SUAS 2017 - 
 # Já feito manualmente, primeira exploração
 # URL 2017- 
 #url2017 <- "https://aplicacoes.mds.gov.br/sagi/pesquisas/documentos/microdado/microdado_210.zip"
+
+# BASE URL
+burl <- "http://aplicacoes.mds.gov.br/sagi/pesquisas/redM.php?t=microdado&l="
+bu2 <- "http://aplicacoes.mds.gov.br/sagi/pesquisas/documentos/"
+bu2 <- c(rep("microdado/",2),rep(bu2,6))
+bu3 <- c(rep("", 2),rep("pdf/",5),"PainelPEI/Publicacoes/")
+
+#urls fixos
+nmicrod <- c("microdado_210.zip",
+             "microdado_209.zip",
+             "microdados_2015.zip",
+             "microdados_2014.zip",
+             "microdado_137.rar",
+             "microdado_134.rar",
+             "microdado_130.rar",
+             "microdado%202010.zip")
+
+#download.file(url2017,pastadados)
+urls <- paste0(burl,bu2,bu3,nmicrod)
 #download.file(url2017,pastadados)
 
+pagina <- xml2::read_html("http://aplicacoes.mds.gov.br/sagi/pesquisas/pes-metadados.php")
+
+micro_SUAS_disp.df <- data.frame(nome =  pagina %>% 
+                                   rvest::html_nodes(paste0("*[contains(concat( ",'" ','"',", \@class, ",'" ','" )',", concat( ",'" ', '" , "',"grpelem",'", " ','"'," ))]))")))
+
 pastadados <- "~/RLocalData/censoSUAS/"
+download.file(urls,destfile = paste0(pastadados,nmicrod), method = "libcurl", extra = "-L")
 nomcarq <- "microdado_210.zip"
 nomcpad <- "Censo SUAS 2017"
 unidinst <- "CRAS"

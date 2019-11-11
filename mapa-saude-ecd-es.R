@@ -3,10 +3,11 @@
 
 
 #Pacotes necessários
-library(tidyverse)
+require(tidyverse)
 devtools::install_github("rpradosiqueira/brazilmaps")
-library(brazilmaps)
-library(plotly)
+require(dplyr)
+require(brazilmaps)
+require(plotly)
 
 
 #variaveis de ambiente e prefixadas
@@ -16,11 +17,9 @@ dtsav <- "~/RLocalData/ecd-indicadores"
 anosel <- seq(2012,2017,1)
 
 #Primeira tentativa de mapa: dados de 
-saude <- read.csv2(paste0("data/2012-2017-indicadores_saude_brutos.csv"))
-#f <- municipesord$CodMunicipio
-#saude <- cbind(codmunicipio = c(as.numeric(levels(f))[f],32),saude)
-
-
+saude <- read.csv2("data/2012-2017-indicadores_saude_brutos.csv", stringsAsFactors = F)
+saude <- saude %>% pivot_longer(cols = 4:11, names_to = "indicador", values_to = "valor")
+saude$cod_mun <- as.numeric(saude$cod_mun)
 #pegar o mapa e juntar aos dados de saudeção
 
 #Mapa municípios ES
@@ -32,52 +31,46 @@ saude <- saude %>% filter(grepl("^32",cod_mun))
 
 
 #Nome dos indicadores
-n_ind_ed <- data.frame(indicador = levels(saude$indicador))
+n_ind_sa <- data.frame(indicador = unique(saude$indicador))
 
 
 
-n_ind_ed$leg <- c("Alunos por Sala - Creches",
-                  "Alunos por Sala - Pré-escolas",
-                  "Creches para cada 1.000 crianças",
-                  "Pré-escolas para cada 1.000 crianças",
-                  "Número de creches públicas (% total)",
-                  "Número de Pré-escolas (% total)",
-                  "Taxa de Cobertura Bruta de Creche (%)",
-                  "Taxa de Cobertura Efetiva de Creche (%)",
-                  "Taxa de Cobertura Bruta de Pré-escolas (%)",
-                  "Taxa de Cobertura Efetiva de Pré-escolas (%)"
-)
+n_ind_sa$leg <- c("mortes maternas no parto a cada 1.000 partos",
+                  "mortes maternas no parto a cada 1.000 mulheres em idade fértil".
+                  "Partos Cesários (% total)",
+                  "Fecundidade adolescente ( /1.000 adolescentes 10 a 19)",
+                  "Nascidos em hospital (% total)         ",
+                  "Gestações que não tiveram consultas pré-natais (% total)",
+                  "Gestações com consultas pré-natais insuficientes (% total)",
+                  "Gestações com 7 ou mais consultas pré-natais (% total)")
 
             
                   
                   
-n_ind_ed$tit <- c("Indicadores da Primeira Infância - 0 a 3 anos",
-                      "Indicadores da Primeira Infância - 4 a 6 anos",
-                      "Indicadores da Primeira Infância - 0 a 3 anos",
-                      "Indicadores da Primeira Infância - 4 a 6 anos",
-                      "Indicadores da Primeira Infância - 0 a 3 anos",
-                      "Indicadores da Primeira Infância - 4 a 6 anos",
-                      "Indicadores da Primeira Infância - 0 a 3 anos",
-                      "Indicadores da Primeira Infância - 0 a 3 anos",
-                      "Indicadores da Primeira Infância - 4 a 6 anos",
-                      "Indicadores da Primeira Infância - 4 a 6 anos"
-)
+n_ind_sa$tit <- c("Primeira Infância - Saúde Materna",
+                      "Primeira Infância - Saúde Materna",
+                      "Primeira Infância - Saúde Materna",
+                      "Primeira Infância - Saúde Materna",
+                      "Primeira Infância - e Saúde - Nascidos",
+                      "Primeira Infância - Saúde Materna",
+                      "Primeira Infância - Saúde Materna",
+                      "Primeira Infância - Saúde Materna")
 
 
-mapas_ed_ecd <- function(ano = anosel,uf = "ES", ci = n_ind_ed) {
+mapas_sa_ecd <- function(ano = anosel,uf = "ES", ci = n_ind_sa) {
 
   
 for (i in 1:nrow(ci)) {                         
 tx <- saude %>% filter(indicador == ci[i,1])
 
 #Estratificar as coberturas para obter menos cores
-if (max(tx$value, na.rm = T)<= 1) {
-tx$taxa <- cut(tx$value,
+if (max(tx$valor, na.rm = T)<= 1) {
+tx$taxa <- cut(tx$valor,
                       c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 }
 else {
-  m <- max(tx$value, na.rm = TRUE)
-  tx$taxa <- cut(tx$value,
+  m <- max(tx$valor, na.rm = TRUE)
+  tx$taxa <- cut(tx$valor,
                  c(0,round(m/5, digits = 0),
                    round(m*2/5, digits = 0),
                    round(m*3/5, digits = 0),
@@ -90,6 +83,8 @@ mapa_m_es$cod_mun <- as.numeric(substr(mapa_m_es$City,0,6))
 txs <- tx
 
 n_part1 <- paste0("mapa_",ci[i,1])
+print(n_part1)
+ci$leg[i]
 #problema kernels
 #Sys.setenv("OPENBLAS_CORETYPE"="Haswell")
 for (j in 1:length(ano)) {
@@ -111,18 +106,19 @@ for (j in 1:length(ano)) {
     labs(title = paste0(ci$tit[i]," - ",uf," - ",anosel[j]),
          fill = ci$leg[i])
   assign(nome, mapa) 
-  ggsave(filename = paste0(dtsav,"/",nome,".png"), width = 140 , height = 90, units = "mm")
+  print(get(nome))
+  ggsave(filename = paste0(dtsav,"/",nome,".png"), dpi = "retina", scale = 1.2)
 }
 }
   }
 
-mapas_ed_ecd()
+mapas_sa_ecd()
 
 #Para ver interativamente - problema com fonte de texto
 #ggplotly(`mapa tx_creche 2012`) 
 
 #Para plotly
-tx$texto <- with(tx, paste(`Município`," - ", `value`))
+tx$texto <- with(tx, paste(`Município`," - ", `valor`))
 
 
 get_brmap("City", geo.filter = list(State = 32)) %>%
