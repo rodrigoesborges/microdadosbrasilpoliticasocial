@@ -1,3 +1,4 @@
+#Modificação do script original para mais dados de rendimento familiar
 #downloader::source_url( "https://raw.githubusercontent.com/guilhermejacob/guilhermejacob.github.io/master/scripts/install_packages.R" , quiet = TRUE , prompt = TRUE )
 
 catalog_cadunico <-
@@ -175,7 +176,8 @@ build_cadunico <-
         csvdata$smf60pc <-  csvdata$vlr_renda_media_fam < sm
         #Adiciona coluna para rendimento per capita abaixo de 50% do SM
         csvdata$smf50pc <- csvdata$vlr_renda_media_fam < (sm*5/6)
-        
+        #Adiciona coluna para rendimento per capita abaixo de 25% do SM
+        csvdata$smf25pc <- csvdata$vlr_renda_media_fam < (sm*25/60)
         #criar coluna de família com filho de 0 a 9 
         csvdata$f0a9 <- as.integer(csvdata$id_familia %in% familiasid0a9$id_familia)
         }
